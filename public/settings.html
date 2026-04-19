@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings – M365 Secret Monitor</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --blue: #0078d4; --blue-dark: #005a9e;
+      --surface: #f3f2f1; --card: #fff; --text: #201f1e; --muted: #605e5c;
+      --border: #edebe9; --red: #d13438; --red-bg: #fde7e9;
+      --green: #107c10; --green-bg: #dff6dd; --orange: #ca5010;
+    }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--surface); color: var(--text); min-height: 100vh; }
+
+    header { background: var(--blue); color: white; height: 48px; padding: 0 24px; display: flex; align-items: center; gap: 12px; }
+    header .brand { font-size: 15px; font-weight: 600; }
+    header nav { display: flex; gap: 4px; margin-left: 24px; }
+    header nav a { color: rgba(255,255,255,.8); text-decoration: none; font-size: 14px; padding: 4px 12px; border-radius: 4px; }
+    header nav a:hover { background: rgba(255,255,255,.1); color: white; }
+    header nav a.active { background: rgba(255,255,255,.15); color: white; }
+    header .spacer { flex: 1; }
+    header .signout { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); color: white; padding: 4px 14px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+    header .signout:hover { background: rgba(255,255,255,.22); }
+
+    main { max-width: 860px; margin: 0 auto; padding: 36px 24px; }
+    .page-header { display: flex; align-items: center; margin-bottom: 28px; }
+    .page-header h1 { font-size: 22px; }
+    .page-header .spacer { flex: 1; }
+
+    .btn-primary { padding: 9px 20px; background: var(--blue); color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-primary:hover:not(:disabled) { background: var(--blue-dark); }
+    .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
+    .btn-secondary { padding: 7px 16px; background: white; color: var(--text); border: 1px solid #c8c6c4; border-radius: 4px; font-size: 13px; cursor: pointer; }
+    .btn-secondary:hover { background: var(--surface); }
+    .btn-ghost { padding: 5px 10px; background: none; border: none; font-size: 13px; color: var(--muted); cursor: pointer; border-radius: 4px; }
+    .btn-ghost:hover { background: var(--surface); color: var(--text); }
+    .btn-danger { padding: 5px 10px; background: none; border: none; font-size: 13px; color: var(--red); cursor: pointer; border-radius: 4px; }
+    .btn-danger:hover { background: var(--red-bg); }
+
+    /* Tenant list */
+    .tenant-list { display: flex; flex-direction: column; gap: 2px; }
+    .tenant-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+      padding: 16px 20px; display: flex; align-items: center; gap: 16px;
+    }
+    .tenant-card.disabled { opacity: .55; }
+    .tenant-icon {
+      width: 38px; height: 38px; border-radius: 8px;
+      background: #e3f0fb; color: var(--blue);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .tenant-info { flex: 1; min-width: 0; }
+    .tenant-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tenant-ids  { font-size: 12px; color: var(--muted); font-family: 'Cascadia Code', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tenant-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot.ok      { background: var(--green); }
+    .status-dot.error   { background: var(--red); }
+    .status-dot.pending { background: #c8c6c4; }
+    .test-label { font-size: 11px; color: var(--muted); }
+
+    /* Toggle switch */
+    .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      position: absolute; inset: 0; border-radius: 10px;
+      background: #c8c6c4; cursor: pointer; transition: background .2s;
+    }
+    .toggle input:checked + .toggle-track { background: var(--blue); }
+    .toggle-track::after {
+      content: ''; position: absolute;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: white; top: 3px; left: 3px;
+      transition: transform .2s;
+    }
+    .toggle input:checked + .toggle-track::after { transform: translateX(16px); }
+
+    /* Empty state */
+    .empty-state {
+      background: var(--card); border: 2px dashed var(--border); border-radius: 8px;
+      padding: 48px 24px; text-align: center;
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state h3 { font-size: 16px; margin-bottom: 6px; }
+    .empty-state p { font-size: 14px; color: var(--muted); margin-bottom: 20px; }
+
+    /* Form panel (slide-in below header) */
+    .form-panel {
+      background: white; border: 1px solid var(--border); border-radius: 8px;
+      padding: 24px 28px; margin-bottom: 16px;
+      display: none;
+    }
+    .form-panel.open { display: block; }
+    .form-panel h3 { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+    .field input {
+      width: 100%; padding: 9px 13px; border: 1px solid #c8c6c4; border-radius: 4px;
+      font-size: 14px; color: var(--text);
+    }
+    .field input.mono { font-family: 'Cascadia Code', monospace; }
+    .field input.optional { border-style: dashed; }
+    .field input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px rgba(0,120,212,.18); }
+    .field .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .alert { padding: 10px 14px; border-radius: 4px; font-size: 13px; display: none; margin-bottom: 16px; }
+    .alert.show { display: block; }
+    .alert.error   { background: var(--red-bg);   border: 1px solid #f1707b; color: var(--red); }
+    .alert.success { background: var(--green-bg); border: 1px solid #57a300; color: var(--green); }
+
+    .form-actions { display: flex; gap: 10px; margin-top: 20px; }
+
+    /* Guide */
+    .guide-box { background: #f0f6ff; border: 1px solid #c7e0f4; border-radius: 6px; padding: 14px 16px; margin-bottom: 20px; }
+    .guide-box summary { font-size: 13px; font-weight: 600; color: var(--blue); cursor: pointer; }
+    .guide-steps { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .guide-step  { display: flex; gap: 10px; align-items: flex-start; }
+    .guide-num   { width: 18px; height: 18px; flex-shrink: 0; background: var(--blue); color: white; border-radius: 50%; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .guide-text  { font-size: 13px; line-height: 1.5; }
+    .guide-text code { background: #deedf9; padding: 1px 4px; border-radius: 3px; font-family: monospace; font-size: 11px; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      background: #201f1e; color: white; padding: 10px 20px; border-radius: 6px;
+      font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 99;
+    }
+    #toast.show { opacity: 1; }
+
+    /* Users / Groups tables */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table th { padding: 8px 12px; text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; background: #f8f7f6; border-bottom: 1px solid var(--border); }
+    .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: #faf9f8; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .badge-admin  { background: #e3f0fb; color: var(--blue); }
+    .badge-viewer { background: #f3f2f1; color: var(--muted); }
+    .inline-form { background: #f8f7f6; border: 1px solid var(--border); border-radius: 6px; padding: 20px 24px; margin-bottom: 16px; display: none; }
+    .inline-form.open { display: block; }
+    .inline-form h4 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+    .checkbox-group { display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; padding: 10px 12px; border: 1px solid #c8c6c4; border-radius: 4px; background: white; }
+    .checkbox-group label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span>🔐</span>
+  <span class="brand">M365 App Secret Monitor</span>
+  <nav>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/settings" class="active">Settings</a>
+  </nav>
+  <span class="spacer"></span>
+  <form method="POST" action="/logout" style="display:inline">
+    <button type="submit" class="signout">Sign out</button>
+  </form>
+</header>
+
+<main>
+  <div class="page-header">
+    <h1>Tenants</h1>
+    <span class="spacer"></span>
+    <button class="btn-primary" id="btn-add">+ Add tenant</button>
+  </div>
+
+  <!-- Add / Edit form -->
+  <div class="form-panel" id="form-panel">
+    <h3 id="form-title">Add tenant</h3>
+
+    <details class="guide-box">
+      <summary>How to get these values from Azure Portal</summary>
+      <div class="guide-steps">
+        <div class="guide-step"><div class="guide-num">1</div><div class="guide-text">Create an <strong>App Registration</strong> in Azure Portal for this monitor.</div></div>
+        <div class="guide-step"><div class="guide-num">2</div><div class="guide-text">Add API permission: Microsoft Graph → Application permissions → <code>Application.Read.All</code>, then grant admin consent.</div></div>
+        <div class="guide-step"><div class="guide-num">3</div><div class="guide-text">Create a <strong>Client Secret</strong> under Certificates &amp; secrets — copy the value immediately.</div></div>
+        <div class="guide-step"><div class="guide-num">4</div><div class="guide-text">Copy the <strong>Tenant ID</strong> and <strong>Client ID</strong> from the app's Overview page.</div></div>
+      </div>
+    </details>
+
+    <div id="form-alert" class="alert error"></div>
+
+    <div class="field">
+      <label>Display name</label>
+      <input id="f-name" type="text" placeholder="e.g. Contoso Production">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Tenant ID</label>
+        <input id="f-tenantId" class="mono" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Client ID</label>
+        <input id="f-clientId" class="mono" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false" autocomplete="off">
+      </div>
+    </div>
+    <div class="field">
+      <label>Client Secret</label>
+      <input id="f-clientSecret" type="password" placeholder="Paste secret value (leave blank to keep existing)" autocomplete="new-password">
+      <div class="hint" id="f-secret-hint" style="display:none">A secret is already saved — leave blank to keep it.</div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-primary" id="btn-save-tenant">Save tenant</button>
+      <button class="btn-secondary" id="btn-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Tenant list -->
+  <div id="tenant-list" class="tenant-list"></div>
+
+  <div id="empty-state" class="empty-state" style="display:none">
+    <div class="icon">🏢</div>
+    <h3>No tenants yet</h3>
+    <p>Add an Azure AD tenant to start monitoring app secrets.</p>
+    <button class="btn-primary" onclick="openAdd()">+ Add your first tenant</button>
+  </div>
+  <!-- Alert thresholds -->
+  <div style="margin-top:32px">
+    <div class="page-header" style="margin-bottom:16px"><h1>Alert thresholds</h1></div>
+    <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:24px 28px">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5">
+        Configure how many days before expiry each status level is triggered.
+        Must be ascending: Critical &lt; Warning &lt; Notice.
+      </p>
+      <div id="threshold-alert" class="alert" style="margin-bottom:16px"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:20px">
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--red)">Critical (days)</label>
+          <input id="thr-critical" type="number" min="1" value="14" style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Expires within N days</div>
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--orange)">Warning (days)</label>
+          <input id="thr-warning" type="number" min="1" value="30" style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Expires within N days</div>
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--yellow)">Notice (days)</label>
+          <input id="thr-notice" type="number" min="1" value="60" style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Expires within N days</div>
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-save-thresholds">Save thresholds</button>
+    </div>
+  </div>
+
+  <!-- Branding -->
+  <div style="margin-top:32px">
+    <div class="page-header" style="margin-bottom:16px">
+      <h1>Branding</h1>
+    </div>
+    <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:24px 28px">
+      <div style="display:flex;align-items:flex-start;gap:32px;flex-wrap:wrap">
+
+        <!-- Preview -->
+        <div style="flex-shrink:0">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px">Current logo</div>
+          <div id="logo-preview" style="width:160px;height:80px;border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden">
+            <img id="logo-preview-img" src="/api/logo" alt="" style="max-width:140px;max-height:68px;object-fit:contain;display:none">
+            <span id="logo-preview-empty" style="font-size:12px;color:var(--muted)">No logo set</span>
+          </div>
+        </div>
+
+        <!-- Upload -->
+        <div style="flex:1;min-width:220px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Upload logo</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5">Shown on the login and 2FA pages. Accepted formats: PNG, JPG, GIF, WebP, SVG. Max 5 MB.</p>
+
+          <div id="drop-zone" style="border:2px dashed #c8c6c4;border-radius:6px;padding:20px;text-align:center;cursor:pointer;transition:border-color .15s;margin-bottom:14px">
+            <div style="font-size:24px;margin-bottom:6px">📁</div>
+            <div style="font-size:13px;color:var(--muted)">Drag &amp; drop an image, or <label for="logo-input" style="color:var(--blue);cursor:pointer;font-weight:600">browse</label></div>
+            <input id="logo-input" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" style="display:none">
+          </div>
+
+          <div id="logo-alert" class="alert" style="margin-bottom:12px"></div>
+
+          <div style="display:flex;gap:10px">
+            <button class="btn-primary" id="btn-upload-logo" disabled>Upload</button>
+            <button class="btn-secondary" id="btn-remove-logo">Remove logo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Users (admin only) -->
+  <div style="margin-top:32px;display:none" id="section-users">
+    <div class="page-header" style="margin-bottom:16px">
+      <h1>Users</h1>
+      <span class="spacer"></span>
+      <button class="btn-primary" id="btn-add-user">+ Add user</button>
+    </div>
+
+    <!-- Add/Edit user inline form -->
+    <div class="inline-form" id="user-form">
+      <h4 id="user-form-title">Add user</h4>
+      <div id="user-form-alert" class="alert error"></div>
+      <div class="field-row">
+        <div class="field">
+          <label>Username</label>
+          <input id="uf-username" type="text" placeholder="e.g. jsmith">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input id="uf-email" type="email" placeholder="jsmith@example.com">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Password <span id="uf-pass-hint" style="font-weight:400;color:var(--muted)">(leave blank to keep existing)</span></label>
+          <input id="uf-password" type="password" placeholder="Min. 8 characters" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label>Role</label>
+          <select id="uf-role" style="width:100%;padding:9px 13px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px;background:white">
+            <option value="viewer">Viewer</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Groups</label>
+        <div class="checkbox-group" id="uf-groups"></div>
+        <div class="hint">Groups control which tenants the user can see (viewers only).</div>
+      </div>
+      <div class="field" style="display:flex;align-items:center;gap:10px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:0">
+          <input type="checkbox" id="uf-notifications"> Receive email notifications
+        </label>
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" id="btn-save-user">Save user</button>
+        <button class="btn-secondary" id="btn-cancel-user">Cancel</button>
+      </div>
+    </div>
+
+    <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div id="users-empty" class="empty-state" style="display:none;border:none;border-radius:8px">
+        <div class="icon">👤</div>
+        <h3>No users yet</h3>
+        <p>Add a user to grant access to the monitor.</p>
+      </div>
+      <table class="data-table" id="users-table">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Groups</th>
+            <th>Notifications</th>
+            <th>Enabled</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Groups (admin only) -->
+  <div style="margin-top:32px;display:none" id="section-groups">
+    <div class="page-header" style="margin-bottom:16px">
+      <h1>Groups</h1>
+      <span class="spacer"></span>
+      <button class="btn-primary" id="btn-add-group">+ Add group</button>
+    </div>
+
+    <!-- Add/Edit group inline form -->
+    <div class="inline-form" id="group-form">
+      <h4 id="group-form-title">Add group</h4>
+      <div id="group-form-alert" class="alert error"></div>
+      <div class="field">
+        <label>Group name</label>
+        <input id="gf-name" type="text" placeholder="e.g. European Tenants">
+      </div>
+      <div class="field">
+        <label>Tenant access</label>
+        <div class="checkbox-group" id="gf-tenants">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="gf-all-tenants" checked> All tenants
+          </label>
+        </div>
+        <div class="hint">Members of this group can see secrets for these tenants.</div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" id="btn-save-group">Save group</button>
+        <button class="btn-secondary" id="btn-cancel-group">Cancel</button>
+      </div>
+    </div>
+
+    <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div id="groups-empty" class="empty-state" style="display:none;border:none;border-radius:8px">
+        <div class="icon">👥</div>
+        <h3>No groups yet</h3>
+        <p>Groups let you scope viewer access to specific tenants.</p>
+      </div>
+      <table class="data-table" id="groups-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Tenant access</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="groups-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Email / Notifications -->
+  <div style="margin-top:32px">
+    <div class="page-header" style="margin-bottom:16px"><h1>Email notifications</h1></div>
+    <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:24px 28px">
+
+      <div id="mail-alert" class="alert" style="margin-bottom:16px"></div>
+
+      <!-- Enable + method -->
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;cursor:pointer">
+          <input type="checkbox" id="mail-enabled" style="width:16px;height:16px">
+          Enable email notifications
+        </label>
+        <div style="display:flex;gap:8px;margin-left:auto">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="radio" name="mail-method" value="smtp" checked> SMTP
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="radio" name="mail-method" value="graph"> Microsoft Graph
+          </label>
+        </div>
+      </div>
+
+      <!-- Recipients + triggers -->
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Recipients</label>
+        <input id="mail-to" type="text" placeholder="admin@example.com, ops@example.com"
+          style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Comma-separated email addresses.</div>
+      </div>
+      <div style="margin-bottom:20px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Tenants to include in reports</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:10px">
+          <input type="checkbox" id="mail-all-tenants" checked> All tenants
+        </label>
+        <div id="mail-tenant-list" style="display:none;display:flex;flex-direction:column;gap:6px;padding:10px 14px;border:1px solid var(--border);border-radius:6px;max-height:180px;overflow-y:auto"></div>
+      </div>
+
+      <div style="margin-bottom:24px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Notify when status is</div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--red)">
+            <input type="checkbox" id="notify-expired" checked> Expired
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--red)">
+            <input type="checkbox" id="notify-critical" checked> Critical
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--orange)">
+            <input type="checkbox" id="notify-warning"> Warning
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--yellow)">
+            <input type="checkbox" id="notify-notice"> Notice
+          </label>
+        </div>
+      </div>
+
+      <!-- SMTP fields -->
+      <div id="smtp-fields">
+        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">SMTP settings</div>
+        <div style="display:grid;grid-template-columns:1fr 120px;gap:12px;margin-bottom:12px">
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Host</label>
+            <input id="smtp-host" type="text" placeholder="smtp.office365.com"
+              style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+          </div>
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Port</label>
+            <input id="smtp-port" type="number" value="587"
+              style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Username</label>
+            <input id="smtp-user" type="text" placeholder="sender@example.com"
+              style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+          </div>
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Password</label>
+            <input id="smtp-pass" type="password" placeholder="Leave unchanged if already set"
+              style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">From address</label>
+            <input id="smtp-from" type="text" placeholder="monitor@example.com"
+              style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+          </div>
+          <div style="display:flex;align-items:flex-end;padding-bottom:2px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="smtp-secure"> Use TLS (port 465)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Graph fields -->
+      <div id="graph-fields" style="display:none">
+        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Microsoft Graph settings</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5">
+          The selected tenant's app registration must have the <code>Mail.Send</code> application permission in Azure AD.
+          The sender must be a licensed mailbox in that tenant.
+        </p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Tenant</label>
+            <select id="graph-tenant" style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px;background:white">
+              <option value="">— select tenant —</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Sender email</label>
+            <input id="graph-sender" type="text" placeholder="monitor@yourdomain.com"
+              style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+          </div>
+        </div>
+      </div>
+
+      <!-- Schedule -->
+      <div style="border-top:1px solid var(--border);margin-top:24px;padding-top:20px">
+        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">Automatic schedule</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+          <label style="font-size:13px;font-weight:600;white-space:nowrap">Send report</label>
+          <select id="sched-freq" style="padding:7px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px;background:white">
+            <option value="disabled">Disabled</option>
+            <option value="daily">Every day</option>
+            <option value="weekly">Once a week</option>
+            <option value="monthly">Once a month</option>
+            <option value="yearly">Once a year</option>
+          </select>
+          <label style="font-size:13px;font-weight:600;white-space:nowrap">at</label>
+          <input id="sched-time" type="time" value="09:00" style="padding:7px 10px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+        </div>
+        <div id="sched-weekly" style="display:none;margin-bottom:14px">
+          <label style="font-size:13px;font-weight:600;margin-bottom:6px;display:block">Day of week</label>
+          <select id="sched-dow" style="padding:7px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px;background:white">
+            <option value="0">Sunday</option><option value="1" selected>Monday</option><option value="2">Tuesday</option>
+            <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+          </select>
+        </div>
+        <div id="sched-monthly" style="display:none;margin-bottom:14px">
+          <label style="font-size:13px;font-weight:600;margin-bottom:6px;display:block">Day of month</label>
+          <input id="sched-dom" type="number" min="1" max="31" value="1" style="width:80px;padding:7px 10px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+        </div>
+        <div id="sched-yearly" style="display:none;margin-bottom:14px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <div>
+              <label style="font-size:13px;font-weight:600;margin-bottom:6px;display:block">Month</label>
+              <select id="sched-month" style="padding:7px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px;background:white">
+                <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+                <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+                <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+                <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:13px;font-weight:600;margin-bottom:6px;display:block">Day</label>
+              <input id="sched-yearday" type="number" min="1" max="31" value="1" style="width:80px;padding:7px 10px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+            </div>
+          </div>
+        </div>
+        <div id="sched-alert" class="alert" style="margin-bottom:12px"></div>
+        <button class="btn-secondary" id="btn-save-schedule">Save schedule</button>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px">
+        <button class="btn-primary" id="btn-save-mail">Save</button>
+        <button class="btn-secondary" id="btn-test-mail">Send test email</button>
+        <button class="btn-secondary" id="btn-send-report">Send report now</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+  let tenants = [];
+  let users   = [];
+  let groups  = [];
+  let editingId = null;
+  let editingUserId = null;
+  let editingGroupId = null;
+  let currentUser = null;
+
+  // ── Role check: show/hide admin sections ──────────────────────────────────
+  async function loadMe() {
+    try {
+      const res = await fetch('/api/me');
+      if (!res.ok) return;
+      currentUser = await res.json();
+      if (currentUser.role === 'admin') {
+        document.getElementById('section-users').style.display = '';
+        document.getElementById('section-groups').style.display = '';
+        await Promise.all([loadUsers(), loadGroups()]);
+      }
+    } catch {}
+  }
+
+  // ── Load tenants ──────────────────────────────────────────────────────────
+  async function load() {
+    const res  = await fetch('/api/tenants');
+    tenants = await res.json();
+    render();
+  }
+
+  function render() {
+    const list = document.getElementById('tenant-list');
+    const empty = document.getElementById('empty-state');
+    list.innerHTML = '';
+
+    if (!tenants.length) {
+      empty.style.display = '';
+      return;
+    }
+    empty.style.display = 'none';
+
+    for (const t of tenants) {
+      const card = document.createElement('div');
+      card.className = 'tenant-card' + (t.enabled ? '' : ' disabled');
+      card.dataset.id = t.id;
+      card.innerHTML = `
+        <div class="tenant-icon">🏢</div>
+        <div class="tenant-info">
+          <div class="tenant-name">${esc(t.name)}</div>
+          <div class="tenant-ids">Tenant: ${esc(t.tenantId)} · App: ${esc(t.clientId)}</div>
+        </div>
+        <div class="tenant-actions">
+          <div class="status-dot pending" id="dot-${t.id}" title="Not tested yet"></div>
+          <button class="btn-ghost" onclick="testTenant('${t.id}')" title="Test connection">Test</button>
+          <label class="toggle" title="${t.enabled ? 'Disable' : 'Enable'}">
+            <input type="checkbox" ${t.enabled ? 'checked' : ''} onchange="toggleTenant('${t.id}', this)">
+            <div class="toggle-track"></div>
+          </label>
+          <button class="btn-ghost" onclick="openEdit('${t.id}')">Edit</button>
+          <button class="btn-danger" onclick="deleteTenant('${t.id}', '${esc(t.name)}')">Delete</button>
+        </div>
+      `;
+      list.appendChild(card);
+    }
+  }
+
+  // ── Add / Edit form ───────────────────────────────────────────────────────
+  function openAdd() {
+    editingId = null;
+    document.getElementById('form-title').textContent = 'Add tenant';
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-tenantId').value = '';
+    document.getElementById('f-clientId').value = '';
+    document.getElementById('f-clientSecret').value = '';
+    document.getElementById('f-secret-hint').style.display = 'none';
+    document.getElementById('f-clientSecret').placeholder = 'Paste secret value';
+    document.getElementById('form-alert').className = 'alert error';
+    document.getElementById('form-panel').classList.add('open');
+    document.getElementById('f-name').focus();
+    document.getElementById('btn-save-tenant').textContent = 'Save tenant';
+  }
+
+  function openEdit(id) {
+    const t = tenants.find(t => t.id === id);
+    if (!t) return;
+    editingId = id;
+    document.getElementById('form-title').textContent = 'Edit tenant';
+    document.getElementById('f-name').value = t.name;
+    document.getElementById('f-tenantId').value = t.tenantId;
+    document.getElementById('f-clientId').value = t.clientId;
+    document.getElementById('f-clientSecret').value = '';
+    document.getElementById('f-clientSecret').placeholder = 'Leave blank to keep existing secret';
+    document.getElementById('f-secret-hint').style.display = t.clientSecretSet ? '' : 'none';
+    document.getElementById('form-alert').className = 'alert error';
+    document.getElementById('form-panel').classList.add('open');
+    document.getElementById('f-name').focus();
+    document.getElementById('btn-save-tenant').textContent = 'Update tenant';
+  }
+
+  document.getElementById('btn-add').addEventListener('click', openAdd);
+  document.getElementById('btn-cancel').addEventListener('click', () => {
+    document.getElementById('form-panel').classList.remove('open');
+  });
+
+  document.getElementById('btn-save-tenant').addEventListener('click', async () => {
+    const alertEl = document.getElementById('form-alert');
+    alertEl.className = 'alert error';
+    const btn = document.getElementById('btn-save-tenant');
+    btn.disabled = true;
+
+    const body = {
+      name:         document.getElementById('f-name').value.trim(),
+      tenantId:     document.getElementById('f-tenantId').value.trim(),
+      clientId:     document.getElementById('f-clientId').value.trim(),
+      clientSecret: document.getElementById('f-clientSecret').value,
+    };
+
+    try {
+      const url    = editingId ? `/api/tenants/${editingId}` : '/api/tenants';
+      const method = editingId ? 'PUT' : 'POST';
+      const res    = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      document.getElementById('form-panel').classList.remove('open');
+      toast(editingId ? 'Tenant updated.' : 'Tenant added.');
+      await load();
+    } catch (e) {
+      alertEl.textContent = e.message;
+      alertEl.className = 'alert error show';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ── Toggle ────────────────────────────────────────────────────────────────
+  async function toggleTenant(id, checkbox) {
+    const res = await fetch(`/api/tenants/${id}/toggle`, { method: 'PATCH' });
+    if (!res.ok) { checkbox.checked = !checkbox.checked; return; }
+    const data = await res.json();
+    const card = document.querySelector(`.tenant-card[data-id="${id}"]`);
+    card.classList.toggle('disabled', !data.enabled);
+    toast(data.enabled ? 'Tenant enabled.' : 'Tenant disabled.');
+    tenants.find(t => t.id === id).enabled = data.enabled;
+  }
+
+  // ── Test ──────────────────────────────────────────────────────────────────
+  async function testTenant(id) {
+    const dot = document.getElementById(`dot-${id}`);
+    dot.className = 'status-dot pending';
+    dot.title = 'Testing…';
+    try {
+      const res  = await fetch(`/api/tenants/${id}/test`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        dot.className = 'status-dot ok';
+        dot.title = 'Connection OK';
+        toast('Connection successful!');
+      } else {
+        dot.className = 'status-dot error';
+        dot.title = data.error;
+        toast('Test failed: ' + data.error, true);
+      }
+    } catch (e) {
+      dot.className = 'status-dot error';
+      dot.title = e.message;
+    }
+  }
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+  async function deleteTenant(id, name) {
+    if (!confirm(`Delete "${name}"?\n\nThis cannot be undone.`)) return;
+    const res = await fetch(`/api/tenants/${id}`, { method: 'DELETE' });
+    if (!res.ok) return;
+    toast('Tenant deleted.');
+    await load();
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  let toastTimer;
+  function toast(msg, err = false) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.style.background = err ? '#d13438' : '#201f1e';
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+  }
+
+  load().then(() => {
+    // Graph tenant dropdown
+    const sel = document.getElementById('graph-tenant');
+    const cur = sel.dataset.selected;
+    tenants.forEach(t => {
+      if (sel.querySelector(`option[value="${t.id}"]`)) return;
+      const opt = document.createElement('option');
+      opt.value = t.id; opt.textContent = t.name;
+      if (t.id === cur) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    // Mail tenant checkboxes
+    const listEl = document.getElementById('mail-tenant-list');
+    buildMailTenantList(listEl.dataset.selected || 'all');
+  });
+
+  loadMe();
+
+  // ── Thresholds ────────────────────────────────────────────────────────────
+  (async () => {
+    try {
+      const res = await fetch('/api/settings');
+      const d = await res.json();
+      if (d.thresholds) {
+        document.getElementById('thr-critical').value = d.thresholds.critical;
+        document.getElementById('thr-warning').value  = d.thresholds.warning;
+        document.getElementById('thr-notice').value   = d.thresholds.notice;
+      }
+    } catch {}
+  })();
+
+  document.getElementById('btn-save-thresholds').addEventListener('click', async () => {
+    const alert = document.getElementById('threshold-alert');
+    alert.className = 'alert'; alert.textContent = '';
+    const body = {
+      critical: document.getElementById('thr-critical').value,
+      warning:  document.getElementById('thr-warning').value,
+      notice:   document.getElementById('thr-notice').value,
+    };
+    try {
+      const res = await fetch('/api/thresholds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      alert.className = 'alert success show'; alert.textContent = 'Thresholds saved.';
+    } catch (e) {
+      alert.className = 'alert error show'; alert.textContent = e.message;
+    }
+  });
+
+  // ── Email ─────────────────────────────────────────────────────────────────
+  function mailAlert(msg, type) {
+    const el = document.getElementById('mail-alert');
+    el.className = 'alert ' + (type === 'ok' ? 'success' : 'error') + ' show';
+    el.textContent = msg;
+  }
+
+  function getMailMethod() {
+    return document.querySelector('input[name="mail-method"]:checked').value;
+  }
+
+  function buildMailTenantList(selectedIds) {
+    const list = document.getElementById('mail-tenant-list');
+    list.innerHTML = '';
+    tenants.forEach(t => {
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = t.id; cb.name = 'mail-tenant-cb';
+      cb.checked = !selectedIds || selectedIds === 'all' || selectedIds.split(',').includes(t.id);
+      label.append(cb, document.createTextNode(t.name));
+      list.appendChild(label);
+    });
+  }
+
+  document.getElementById('mail-all-tenants').addEventListener('change', e => {
+    const list = document.getElementById('mail-tenant-list');
+    list.style.display = e.target.checked ? 'none' : 'flex';
+  });
+
+  document.querySelectorAll('input[name="mail-method"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const smtp = getMailMethod() === 'smtp';
+      document.getElementById('smtp-fields').style.display  = smtp ? '' : 'none';
+      document.getElementById('graph-fields').style.display = smtp ? 'none' : '';
+    });
+  });
+
+  (async () => {
+    try {
+      const res = await fetch('/api/email');
+      const c = await res.json();
+      document.getElementById('mail-enabled').checked    = c.enabled;
+      document.getElementById('mail-to').value           = c.to;
+      document.getElementById('notify-expired').checked  = c.notifyExpired;
+      document.getElementById('notify-critical').checked = c.notifyCritical;
+      document.getElementById('notify-warning').checked  = c.notifyWarning;
+      document.getElementById('notify-notice').checked   = c.notifyNotice;
+      document.getElementById('smtp-host').value   = c.smtp.host;
+      document.getElementById('smtp-port').value   = c.smtp.port;
+      document.getElementById('smtp-user').value   = c.smtp.user;
+      document.getElementById('smtp-pass').value   = c.smtp.pass;
+      document.getElementById('smtp-from').value   = c.smtp.from;
+      document.getElementById('smtp-secure').checked = c.smtp.secure;
+      document.getElementById('graph-sender').value  = c.graph.sender;
+      if (c.method === 'graph') {
+        document.querySelector('input[name="mail-method"][value="graph"]').checked = true;
+        document.getElementById('smtp-fields').style.display  = 'none';
+        document.getElementById('graph-fields').style.display = '';
+      }
+      document.getElementById('graph-tenant').dataset.selected = c.graph.tenantRecordId || '';
+      const allTenantsChecked = !c.tenantIds || c.tenantIds === 'all';
+      document.getElementById('mail-all-tenants').checked = allTenantsChecked;
+      document.getElementById('mail-tenant-list').style.display = allTenantsChecked ? 'none' : 'flex';
+      document.getElementById('mail-tenant-list').dataset.selected = c.tenantIds || 'all';
+    } catch {}
+  })();
+
+  document.getElementById('btn-save-mail').addEventListener('click', async () => {
+    const body = {
+      enabled:        document.getElementById('mail-enabled').checked,
+      method:         getMailMethod(),
+      to:             document.getElementById('mail-to').value,
+      notifyExpired:  document.getElementById('notify-expired').checked,
+      notifyCritical: document.getElementById('notify-critical').checked,
+      notifyWarning:  document.getElementById('notify-warning').checked,
+      notifyNotice:   document.getElementById('notify-notice').checked,
+      smtpHost:   document.getElementById('smtp-host').value,
+      smtpPort:   document.getElementById('smtp-port').value,
+      smtpUser:   document.getElementById('smtp-user').value,
+      smtpPass:   document.getElementById('smtp-pass').value,
+      smtpFrom:   document.getElementById('smtp-from').value,
+      smtpSecure: document.getElementById('smtp-secure').checked,
+      graphTenantId: document.getElementById('graph-tenant').value,
+      graphSender:   document.getElementById('graph-sender').value,
+      tenantIds: document.getElementById('mail-all-tenants').checked
+        ? 'all'
+        : [...document.querySelectorAll('input[name="mail-tenant-cb"]:checked')].map(cb => cb.value),
+    };
+    try {
+      const res = await fetch('/api/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      mailAlert('Email settings saved.', 'ok');
+    } catch (e) { mailAlert(e.message, 'error'); }
+  });
+
+  document.getElementById('btn-test-mail').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-test-mail');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const res = await fetch('/api/email/test', { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      mailAlert('Test email sent successfully.', 'ok');
+    } catch (e) { mailAlert('Failed: ' + e.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Send test email'; }
+  });
+
+  document.getElementById('btn-send-report').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-send-report');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const res = await fetch('/api/email/send-report', { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      mailAlert(`Report sent — ${d.count} secret(s) included.`, 'ok');
+    } catch (e) { mailAlert('Failed: ' + e.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Send report now'; }
+  });
+
+  // ── Schedule ──────────────────────────────────────────────────────────────
+  function applySchedFreq(freq) {
+    document.getElementById('sched-weekly').style.display  = freq === 'weekly'  ? '' : 'none';
+    document.getElementById('sched-monthly').style.display = freq === 'monthly' ? '' : 'none';
+    document.getElementById('sched-yearly').style.display  = freq === 'yearly'  ? '' : 'none';
+  }
+
+  document.getElementById('sched-freq').addEventListener('change', e => applySchedFreq(e.target.value));
+
+  (async () => {
+    try {
+      const res = await fetch('/api/email/schedule');
+      const s = await res.json();
+      document.getElementById('sched-freq').value    = s.freq;
+      document.getElementById('sched-time').value    = s.time;
+      document.getElementById('sched-dow').value     = s.dow;
+      document.getElementById('sched-dom').value     = s.dom;
+      document.getElementById('sched-month').value   = s.yearMonth;
+      document.getElementById('sched-yearday').value = s.yearDay;
+      applySchedFreq(s.freq);
+    } catch {}
+  })();
+
+  document.getElementById('btn-save-schedule').addEventListener('click', async () => {
+    const alertEl = document.getElementById('sched-alert');
+    alertEl.className = 'alert'; alertEl.textContent = '';
+    const body = {
+      freq:      document.getElementById('sched-freq').value,
+      time:      document.getElementById('sched-time').value,
+      dow:       parseInt(document.getElementById('sched-dow').value),
+      dom:       parseInt(document.getElementById('sched-dom').value),
+      yearMonth: parseInt(document.getElementById('sched-month').value),
+      yearDay:   parseInt(document.getElementById('sched-yearday').value),
+    };
+    try {
+      const res = await fetch('/api/email/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      alertEl.className = 'alert success show'; alertEl.textContent = 'Schedule saved.';
+    } catch (e) { alertEl.className = 'alert error show'; alertEl.textContent = e.message; }
+  });
+
+  // ── Branding ──────────────────────────────────────────────────────────────
+  let pendingLogoFile = null;
+
+  function refreshLogoPreview(src) {
+    const img   = document.getElementById('logo-preview-img');
+    const empty = document.getElementById('logo-preview-empty');
+    if (src) {
+      img.src = src;
+      img.onload  = () => { img.style.display = 'block'; empty.style.display = 'none'; };
+      img.onerror = () => { img.style.display = 'none'; empty.style.display = 'block'; };
+    } else {
+      img.style.display = 'none';
+      empty.style.display = 'block';
+    }
+  }
+  refreshLogoPreview('/api/logo?' + Date.now());
+
+  function handleLogoFile(file) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showLogoAlert('File is too large. Max 5 MB.', true); return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      pendingLogoFile = e.target.result;
+      refreshLogoPreview(pendingLogoFile);
+      document.getElementById('btn-upload-logo').disabled = false;
+      showLogoAlert('');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  document.getElementById('logo-input').addEventListener('change', e => handleLogoFile(e.target.files[0]));
+
+  const dropZone = document.getElementById('drop-zone');
+  dropZone.addEventListener('click', () => document.getElementById('logo-input').click());
+  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.style.borderColor = 'var(--blue)'; });
+  dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#c8c6c4'; });
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.style.borderColor = '#c8c6c4';
+    handleLogoFile(e.dataTransfer.files[0]);
+  });
+
+  document.getElementById('btn-upload-logo').addEventListener('click', async () => {
+    if (!pendingLogoFile) return;
+    const btn = document.getElementById('btn-upload-logo');
+    btn.disabled = true; btn.textContent = 'Uploading…';
+    try {
+      const res  = await fetch('/api/logo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: pendingLogoFile }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      pendingLogoFile = null;
+      refreshLogoPreview('/api/logo?' + Date.now());
+      showLogoAlert('Logo uploaded successfully.', false);
+      toast('Logo saved.');
+    } catch (e) {
+      showLogoAlert(e.message, true);
+    } finally {
+      btn.textContent = 'Upload';
+    }
+  });
+
+  document.getElementById('btn-remove-logo').addEventListener('click', async () => {
+    if (!confirm('Remove the current logo?')) return;
+    const res = await fetch('/api/logo', { method: 'DELETE' });
+    if (res.ok) {
+      pendingLogoFile = null;
+      document.getElementById('logo-input').value = '';
+      document.getElementById('btn-upload-logo').disabled = true;
+      refreshLogoPreview(null);
+      toast('Logo removed.');
+    }
+  });
+
+  function showLogoAlert(msg, isError = false) {
+    const el = document.getElementById('logo-alert');
+    el.textContent = msg;
+    el.className = 'alert' + (msg ? (isError ? ' error show' : ' success show') : '');
+  }
+
+  // ── Users ─────────────────────────────────────────────────────────────────
+  async function loadUsers() {
+    try {
+      const res = await fetch('/api/users');
+      if (!res.ok) return;
+      users = await res.json();
+      renderUsers();
+    } catch {}
+  }
+
+  function renderUsers() {
+    const tbody = document.getElementById('users-tbody');
+    const empty = document.getElementById('users-empty');
+    const table = document.getElementById('users-table');
+    tbody.innerHTML = '';
+
+    if (!users.length) {
+      empty.style.display = '';
+      table.style.display = 'none';
+      return;
+    }
+    empty.style.display = 'none';
+    table.style.display = '';
+
+    for (const u of users) {
+      const groupNames = (u.groupIds || [])
+        .map(gid => { const g = groups.find(g => g.id === gid); return g ? esc(g.name) : null; })
+        .filter(Boolean).join(', ') || '<span style="color:var(--muted)">—</span>';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${esc(u.username)}</strong></td>
+        <td>${esc(u.email)}</td>
+        <td><span class="badge badge-${u.role}">${u.role}</span></td>
+        <td>${groupNames}</td>
+        <td>
+          <label class="toggle" title="Notifications">
+            <input type="checkbox" ${u.receiveNotifications ? 'checked' : ''} onchange="toggleUserNotifications('${u.id}', this)">
+            <div class="toggle-track"></div>
+          </label>
+        </td>
+        <td>
+          <label class="toggle" title="${u.enabled !== false ? 'Enabled' : 'Disabled'}">
+            <input type="checkbox" ${u.enabled !== false ? 'checked' : ''} onchange="toggleUserEnabled('${u.id}', this)">
+            <div class="toggle-track"></div>
+          </label>
+        </td>
+        <td style="white-space:nowrap">
+          <button class="btn-ghost" onclick="openEditUser('${u.id}')">Edit</button>
+          <button class="btn-danger" onclick="deleteUser('${u.id}', '${esc(u.username)}')">Delete</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function buildGroupCheckboxes(containerId, selectedIds) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    if (!groups.length) {
+      container.innerHTML = '<span style="font-size:13px;color:var(--muted)">No groups yet — create groups first.</span>';
+      return;
+    }
+    groups.forEach(g => {
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = g.id; cb.name = 'uf-group-cb';
+      cb.checked = Array.isArray(selectedIds) && selectedIds.includes(g.id);
+      label.append(cb, document.createTextNode(g.name));
+      container.appendChild(label);
+    });
+  }
+
+  function openAddUser() {
+    editingUserId = null;
+    document.getElementById('user-form-title').textContent = 'Add user';
+    document.getElementById('uf-username').value = '';
+    document.getElementById('uf-email').value = '';
+    document.getElementById('uf-password').value = '';
+    document.getElementById('uf-role').value = 'viewer';
+    document.getElementById('uf-notifications').checked = false;
+    document.getElementById('uf-pass-hint').style.display = 'none';
+    document.getElementById('user-form-alert').className = 'alert error';
+    buildGroupCheckboxes('uf-groups', []);
+    document.getElementById('user-form').classList.add('open');
+    document.getElementById('uf-username').focus();
+    document.getElementById('btn-save-user').textContent = 'Save user';
+  }
+
+  function openEditUser(id) {
+    const u = users.find(u => u.id === id);
+    if (!u) return;
+    editingUserId = id;
+    document.getElementById('user-form-title').textContent = 'Edit user';
+    document.getElementById('uf-username').value = u.username;
+    document.getElementById('uf-email').value = u.email;
+    document.getElementById('uf-password').value = '';
+    document.getElementById('uf-role').value = u.role;
+    document.getElementById('uf-notifications').checked = !!u.receiveNotifications;
+    document.getElementById('uf-pass-hint').style.display = '';
+    document.getElementById('user-form-alert').className = 'alert error';
+    buildGroupCheckboxes('uf-groups', u.groupIds || []);
+    document.getElementById('user-form').classList.add('open');
+    document.getElementById('uf-username').focus();
+    document.getElementById('btn-save-user').textContent = 'Update user';
+  }
+
+  document.getElementById('btn-add-user').addEventListener('click', openAddUser);
+  document.getElementById('btn-cancel-user').addEventListener('click', () => {
+    document.getElementById('user-form').classList.remove('open');
+  });
+
+  document.getElementById('btn-save-user').addEventListener('click', async () => {
+    const alertEl = document.getElementById('user-form-alert');
+    alertEl.className = 'alert error';
+    const btn = document.getElementById('btn-save-user');
+    btn.disabled = true;
+
+    const selectedGroupIds = [...document.querySelectorAll('input[name="uf-group-cb"]:checked')].map(cb => cb.value);
+    const body = {
+      username:             document.getElementById('uf-username').value.trim(),
+      email:                document.getElementById('uf-email').value.trim(),
+      role:                 document.getElementById('uf-role').value,
+      groupIds:             selectedGroupIds,
+      receiveNotifications: document.getElementById('uf-notifications').checked,
+    };
+    const pass = document.getElementById('uf-password').value;
+    if (pass) body.password = pass;
+    else if (!editingUserId) {
+      alertEl.textContent = 'Password is required for new users.';
+      alertEl.className = 'alert error show';
+      btn.disabled = false;
+      return;
+    }
+
+    try {
+      const url    = editingUserId ? `/api/users/${editingUserId}` : '/api/users';
+      const method = editingUserId ? 'PUT' : 'POST';
+      const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data   = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      document.getElementById('user-form').classList.remove('open');
+      toast(editingUserId ? 'User updated.' : 'User added.');
+      await loadUsers();
+    } catch (e) {
+      alertEl.textContent = e.message;
+      alertEl.className = 'alert error show';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  async function toggleUserNotifications(id, checkbox) {
+    const u = users.find(u => u.id === id);
+    if (!u) return;
+    const res = await fetch(`/api/users/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receiveNotifications: checkbox.checked }),
+    });
+    if (!res.ok) { checkbox.checked = !checkbox.checked; return; }
+    u.receiveNotifications = checkbox.checked;
+    toast(checkbox.checked ? 'Notifications enabled.' : 'Notifications disabled.');
+  }
+
+  async function toggleUserEnabled(id, checkbox) {
+    const u = users.find(u => u.id === id);
+    if (!u) return;
+    const res = await fetch(`/api/users/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: checkbox.checked }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      checkbox.checked = !checkbox.checked;
+      toast(data.error, true);
+      return;
+    }
+    u.enabled = checkbox.checked;
+    toast(checkbox.checked ? 'User enabled.' : 'User disabled.');
+  }
+
+  async function deleteUser(id, name) {
+    if (!confirm(`Delete user "${name}"?\n\nThis cannot be undone.`)) return;
+    const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) { toast(data.error, true); return; }
+    toast('User deleted.');
+    await loadUsers();
+  }
+
+  // ── Groups ────────────────────────────────────────────────────────────────
+  async function loadGroups() {
+    try {
+      const res = await fetch('/api/groups');
+      if (!res.ok) return;
+      groups = await res.json();
+      renderGroups();
+    } catch {}
+  }
+
+  function renderGroups() {
+    const tbody = document.getElementById('groups-tbody');
+    const empty = document.getElementById('groups-empty');
+    const table = document.getElementById('groups-table');
+    tbody.innerHTML = '';
+
+    if (!groups.length) {
+      empty.style.display = '';
+      table.style.display = 'none';
+      return;
+    }
+    empty.style.display = 'none';
+    table.style.display = '';
+
+    for (const g of groups) {
+      const tenantLabel = !g.tenantIds || g.tenantIds.includes('all')
+        ? 'All tenants'
+        : g.tenantIds.map(tid => {
+            const t = tenants.find(t => t.id === tid);
+            return t ? esc(t.name) : tid;
+          }).join(', ') || '—';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${esc(g.name)}</strong></td>
+        <td style="color:var(--muted);font-size:13px">${tenantLabel}</td>
+        <td style="white-space:nowrap">
+          <button class="btn-ghost" onclick="openEditGroup('${g.id}')">Edit</button>
+          <button class="btn-danger" onclick="deleteGroup('${g.id}', '${esc(g.name)}')">Delete</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function buildGroupTenantCheckboxes(selectedIds) {
+    const container = document.getElementById('gf-tenants');
+    container.innerHTML = '';
+
+    // "All tenants" checkbox
+    const allLabel = document.createElement('label');
+    allLabel.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer';
+    const allCb = document.createElement('input');
+    allCb.type = 'checkbox'; allCb.id = 'gf-all-tenants';
+    const isAll = !selectedIds || selectedIds.includes('all');
+    allCb.checked = isAll;
+    allCb.addEventListener('change', () => {
+      container.querySelectorAll('input[name="gf-tenant-cb"]').forEach(cb => {
+        cb.disabled = allCb.checked;
+        if (allCb.checked) cb.checked = false;
+      });
+    });
+    allLabel.append(allCb, document.createTextNode('All tenants'));
+    container.appendChild(allLabel);
+
+    tenants.forEach(t => {
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = t.id; cb.name = 'gf-tenant-cb';
+      cb.disabled = isAll;
+      cb.checked = !isAll && Array.isArray(selectedIds) && selectedIds.includes(t.id);
+      label.append(cb, document.createTextNode(t.name));
+      container.appendChild(label);
+    });
+  }
+
+  function openAddGroup() {
+    editingGroupId = null;
+    document.getElementById('group-form-title').textContent = 'Add group';
+    document.getElementById('gf-name').value = '';
+    document.getElementById('group-form-alert').className = 'alert error';
+    buildGroupTenantCheckboxes(['all']);
+    document.getElementById('group-form').classList.add('open');
+    document.getElementById('gf-name').focus();
+    document.getElementById('btn-save-group').textContent = 'Save group';
+  }
+
+  function openEditGroup(id) {
+    const g = groups.find(g => g.id === id);
+    if (!g) return;
+    editingGroupId = id;
+    document.getElementById('group-form-title').textContent = 'Edit group';
+    document.getElementById('gf-name').value = g.name;
+    document.getElementById('group-form-alert').className = 'alert error';
+    buildGroupTenantCheckboxes(g.tenantIds || ['all']);
+    document.getElementById('group-form').classList.add('open');
+    document.getElementById('gf-name').focus();
+    document.getElementById('btn-save-group').textContent = 'Update group';
+  }
+
+  document.getElementById('btn-add-group').addEventListener('click', openAddGroup);
+  document.getElementById('btn-cancel-group').addEventListener('click', () => {
+    document.getElementById('group-form').classList.remove('open');
+  });
+
+  document.getElementById('btn-save-group').addEventListener('click', async () => {
+    const alertEl = document.getElementById('group-form-alert');
+    alertEl.className = 'alert error';
+    const btn = document.getElementById('btn-save-group');
+    btn.disabled = true;
+
+    const allCb = document.getElementById('gf-all-tenants');
+    let tenantIds;
+    if (allCb && allCb.checked) {
+      tenantIds = ['all'];
+    } else {
+      tenantIds = [...document.querySelectorAll('input[name="gf-tenant-cb"]:checked')].map(cb => cb.value);
+    }
+
+    const body = {
+      name:      document.getElementById('gf-name').value.trim(),
+      tenantIds,
+    };
+
+    try {
+      const url    = editingGroupId ? `/api/groups/${editingGroupId}` : '/api/groups';
+      const method = editingGroupId ? 'PUT' : 'POST';
+      const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data   = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      document.getElementById('group-form').classList.remove('open');
+      toast(editingGroupId ? 'Group updated.' : 'Group added.');
+      await loadGroups();
+      // Refresh user form group list if open
+      if (document.getElementById('user-form').classList.contains('open')) {
+        const selectedIds = [...document.querySelectorAll('input[name="uf-group-cb"]:checked')].map(cb => cb.value);
+        buildGroupCheckboxes('uf-groups', selectedIds);
+      }
+    } catch (e) {
+      alertEl.textContent = e.message;
+      alertEl.className = 'alert error show';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  async function deleteGroup(id, name) {
+    if (!confirm(`Delete group "${name}"?\n\nUsers in this group will lose access to its tenants.`)) return;
+    const res = await fetch(`/api/groups/${id}`, { method: 'DELETE' });
+    if (!res.ok) { const d = await res.json(); toast(d.error, true); return; }
+    toast('Group deleted.');
+    await loadGroups();
+  }
+</script>
+</body>
+</html>

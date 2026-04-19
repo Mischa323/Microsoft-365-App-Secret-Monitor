@@ -1,0 +1,19 @@
+{
+  "name": "m365-app-secret-monitor",
+  "version": "1.0.0",
+  "description": "Monitor Microsoft 365 app registration secret expiry dates",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "nodemailer": "^8.0.5",
+    "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0"
+  }
+}

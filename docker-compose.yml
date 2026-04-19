@@ -1,0 +1,11 @@
+services:
+  m365-monitor:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - m365_data:/data
+    restart: unless-stopped
+
+volumes:
+  m365_data:

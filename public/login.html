@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in – M365 Secret Monitor</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --blue: #0078d4;
+      --blue-dark: #005a9e;
+      --red: #d13438;
+      --red-bg: #fde7e9;
+      --muted: #605e5c;
+      --border: #edebe9;
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* Left branding */
+    .brand {
+      width: 42%;
+      background: linear-gradient(145deg, #0078d4 0%, #005a9e 60%, #003f6f 100%);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 64px 56px;
+      position: relative;
+      overflow: hidden;
+    }
+    .brand::before {
+      content: '';
+      position: absolute;
+      width: 500px; height: 500px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+      top: -180px; right: -160px;
+    }
+    .brand::after {
+      content: '';
+      position: absolute;
+      width: 320px; height: 320px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.05);
+      bottom: -100px; left: -80px;
+    }
+    .brand .icon {
+      width: 64px; height: 64px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      margin-bottom: 32px;
+      position: relative; z-index: 1;
+    }
+    .brand h1 { font-size: 28px; font-weight: 700; line-height: 1.25; margin-bottom: 16px; position: relative; z-index: 1; }
+    .brand p  { font-size: 15px; line-height: 1.6; opacity: 0.82; max-width: 320px; position: relative; z-index: 1; }
+    .brand .features { margin-top: 40px; display: flex; flex-direction: column; gap: 14px; position: relative; z-index: 1; }
+    .brand .feat { display: flex; align-items: center; gap: 12px; font-size: 14px; opacity: 0.88; }
+    .brand .feat-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.6); flex-shrink: 0; }
+
+    /* Right form */
+    .form-wrap {
+      flex: 1;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 48px 40px;
+    }
+    .form-inner { width: 100%; max-width: 360px; }
+
+    .org-logo { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 40px; min-height: 40px; }
+    .org-logo img { max-height: 56px; max-width: 180px; object-fit: contain; display: none; }
+    .org-logo .default { font-size: 22px; display: flex; align-items: center; gap: 8px; font-weight: 700; color: #201f1e; }
+    .org-logo .default .icon { font-size: 26px; }
+
+    h2 { font-size: 24px; font-weight: 700; color: #201f1e; margin-bottom: 6px; }
+    .sub { font-size: 14px; color: var(--muted); margin-bottom: 32px; }
+
+    .field { margin-bottom: 20px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; color: #201f1e; margin-bottom: 6px; }
+    .field input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #c8c6c4;
+      border-radius: 4px;
+      font-size: 15px;
+      color: #201f1e;
+      transition: border-color 0.15s;
+    }
+    .field input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px rgba(0,120,212,0.2); }
+
+    .error-box {
+      display: none;
+      padding: 11px 14px;
+      background: var(--red-bg);
+      border: 1px solid #f1707b;
+      border-radius: 4px;
+      color: var(--red);
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+    .error-box.show { display: block; }
+
+    button[type=submit] {
+      width: 100%;
+      padding: 11px;
+      background: var(--blue);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button[type=submit]:hover { background: var(--blue-dark); }
+
+    .footer {
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: #a19f9d;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 720px) {
+      .brand { display: none; }
+      .form-wrap { padding: 40px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="brand">
+  <div class="icon">🔐</div>
+  <h1>App Secret<br>Monitor</h1>
+  <p>Keep track of Microsoft 365 app registration secrets and certificates before they expire.</p>
+  <div class="features">
+    <div class="feat"><div class="feat-dot"></div>Real-time expiry status from Microsoft Graph</div>
+    <div class="feat"><div class="feat-dot"></div>Color-coded alerts: expired, critical, warning</div>
+    <div class="feat"><div class="feat-dot"></div>All app registrations in your tenant at a glance</div>
+    <div class="feat"><div class="feat-dot"></div>Runs on Node.js – fully self-hosted</div>
+  </div>
+</div>
+
+<div class="form-wrap">
+  <div class="form-inner">
+    <div class="org-logo" id="org-logo">
+      <img id="custom-logo" src="/api/logo" alt="Logo">
+      <div class="default" id="default-logo">
+        <span class="icon">🔐</span>
+        <span>Secret Monitor</span>
+      </div>
+    </div>
+
+    <h2>Sign in</h2>
+    <p class="sub">Enter your administrator credentials to access the dashboard.</p>
+
+    <div id="error-box" class="error-box">
+      Incorrect username or password. Please try again.
+    </div>
+
+    <form method="POST" action="/login">
+      <div class="field">
+        <label for="username">Username or email</label>
+        <input id="username" name="username" type="text" autocomplete="username" placeholder="admin or you@example.com" autofocus required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit">Sign in</button>
+    </form>
+
+    <div class="footer">
+      This is a self-hosted tool. Credentials are verified server-side<br>and never sent to third parties.
+    </div>
+  </div>
+</div>
+
+<script>
+  // Show error if redirected back with ?error=1
+  const logoImg = document.getElementById('custom-logo');
+  logoImg.onload  = () => { logoImg.style.display = 'block'; document.getElementById('default-logo').style.display = 'none'; };
+  logoImg.onerror = () => { logoImg.style.display = 'none'; document.getElementById('default-logo').style.display = 'flex'; };
+
+  if (new URLSearchParams(location.search).get('error')) {
+    document.getElementById('error-box').classList.add('show');
+  }
+</script>
+</body>
+</html>

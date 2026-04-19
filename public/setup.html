@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setup – M365 Secret Monitor</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --blue: #0078d4; --blue-dark: #005a9e;
+      --surface: #f3f2f1; --card: #fff; --text: #201f1e; --muted: #605e5c;
+      --border: #edebe9; --red: #d13438; --red-bg: #fde7e9;
+      --green: #107c10; --green-bg: #dff6dd; --yellow: #986f0b; --yellow-bg: #fef9ec;
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--surface); color: var(--text);
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 40px 24px 64px;
+    }
+    .top-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; align-self: flex-start; width: 100%; max-width: 660px; }
+    .top-bar .logo { font-size: 22px; }
+    .top-bar .brand { font-size: 16px; font-weight: 600; color: var(--blue); }
+
+    /* Progress */
+    .progress { display: flex; align-items: center; margin-bottom: 28px; width: 100%; max-width: 660px; }
+    .step-ind { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; position: relative; }
+    .step-ind:not(:last-child)::after {
+      content: ''; position: absolute; top: 14px;
+      left: calc(50% + 16px); right: calc(-50% + 16px);
+      height: 2px; background: var(--border); z-index: 0;
+    }
+    .step-ind.done:not(:last-child)::after { background: var(--blue); }
+    .step-circle {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: white; border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: var(--muted);
+      position: relative; z-index: 1; transition: all 0.2s;
+    }
+    .step-ind.active .step-circle { border-color: var(--blue); background: var(--blue); color: white; }
+    .step-ind.done   .step-circle { border-color: var(--blue); background: var(--blue); color: white; }
+    .step-ind.done .step-circle .num { display: none; }
+    .step-ind.done .step-circle::after { content: '✓'; }
+    .step-lbl { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .step-ind.active .step-lbl, .step-ind.done .step-lbl { color: var(--blue); font-weight: 600; }
+
+    /* Card */
+    .card { background: var(--card); border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.09); padding: 36px 40px; width: 100%; max-width: 660px; }
+    .card-header { margin-bottom: 24px; }
+    .card-header h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .card-header p  { font-size: 14px; color: var(--muted); line-height: 1.5; }
+
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
+    /* Fields */
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .field input, .field select {
+      width: 100%; padding: 10px 13px;
+      border: 1px solid #c8c6c4; border-radius: 4px;
+      font-size: 14px; color: var(--text); font-family: inherit;
+      background: white;
+    }
+    .field input.mono { font-family: 'Cascadia Code', 'Consolas', monospace; }
+    .field input:focus, .field select:focus {
+      outline: none; border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(0,120,212,.18);
+    }
+    .field input.optional { border-style: dashed; }
+    .field .hint { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
+    .badge-opt { display: inline-block; background: var(--yellow-bg); color: var(--yellow); font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+
+    /* Password strength */
+    .strength-bar { height: 3px; border-radius: 2px; margin-top: 8px; background: var(--border); overflow: hidden; }
+    .strength-fill { height: 100%; width: 0; border-radius: 2px; transition: width .2s, background .2s; }
+
+    /* Row of two fields */
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    /* 2FA panel */
+    .twofa-wrap { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; }
+    .qr-box {
+      flex-shrink: 0; width: 160px; height: 160px;
+      border: 1px solid var(--border); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      background: #fafafa; overflow: hidden;
+    }
+    .qr-box img { width: 160px; height: 160px; }
+    .qr-box .qr-loading { font-size: 12px; color: var(--muted); text-align: center; padding: 16px; }
+    .twofa-info { flex: 1; min-width: 200px; }
+    .twofa-info p { font-size: 14px; line-height: 1.6; color: var(--text); margin-bottom: 12px; }
+    .twofa-info .secret-display {
+      font-family: 'Cascadia Code', monospace; font-size: 12px;
+      background: #f0f0f0; padding: 8px 12px; border-radius: 4px;
+      word-break: break-all; margin-bottom: 16px; letter-spacing: 1px;
+    }
+    .token-row { display: flex; gap: 8px; align-items: center; }
+    .token-row input {
+      width: 140px; padding: 9px 12px; border: 1px solid #c8c6c4;
+      border-radius: 4px; font-size: 18px; font-family: 'Cascadia Code', monospace;
+      letter-spacing: 4px; text-align: center;
+    }
+    .token-row input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px rgba(0,120,212,.18); }
+    .btn-verify { padding: 9px 18px; background: var(--blue); color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-verify:hover { background: var(--blue-dark); }
+    .btn-verify:disabled { opacity: 0.6; cursor: not-allowed; }
+    .verified-badge { display: none; align-items: center; gap: 6px; color: var(--green); font-size: 13px; font-weight: 600; }
+    .verified-badge.show { display: flex; }
+
+    /* Guide box */
+    .guide-box { background: #f0f6ff; border: 1px solid #c7e0f4; border-radius: 6px; padding: 16px 18px; margin-bottom: 20px; }
+    .guide-box h3 { font-size: 13px; font-weight: 700; color: var(--blue); margin-bottom: 10px; }
+    .guide-steps { display: flex; flex-direction: column; gap: 10px; }
+    .guide-step  { display: flex; gap: 12px; align-items: flex-start; }
+    .guide-num   { width: 20px; height: 20px; flex-shrink: 0; background: var(--blue); color: white; border-radius: 50%; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .guide-text  { font-size: 13px; color: var(--text); line-height: 1.5; }
+    .guide-text code { background: #deedf9; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+
+    /* Alert */
+    .alert { padding: 11px 14px; border-radius: 4px; font-size: 13px; line-height: 1.4; display: none; margin-bottom: 18px; }
+    .alert.show { display: block; }
+    .alert.error   { background: var(--red-bg);   border: 1px solid #f1707b; color: var(--red); }
+    .alert.success { background: var(--green-bg); border: 1px solid #57a300; color: var(--green); }
+
+    /* Buttons */
+    .btn-row { display: flex; gap: 12px; margin-top: 28px; align-items: center; flex-wrap: wrap; }
+    .btn-primary { padding: 10px 28px; background: var(--blue); color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-primary:hover:not(:disabled) { background: var(--blue-dark); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary { padding: 10px 20px; background: white; color: var(--text); border: 1px solid #c8c6c4; border-radius: 4px; font-size: 14px; cursor: pointer; }
+    .btn-secondary:hover { background: var(--surface); }
+    .btn-skip { margin-left: auto; background: none; border: none; font-size: 13px; color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+    .btn-skip:hover { color: var(--text); }
+
+    /* Done */
+    .done-icon { font-size: 52px; margin-bottom: 16px; }
+    .success-list { display: flex; flex-direction: column; gap: 10px; margin: 24px 0; }
+    .success-item { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+    .success-item .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .success-item .dot.grey { background: #c8c6c4; }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <span class="logo">🔐</span>
+  <span class="brand">M365 App Secret Monitor — Initial Setup</span>
+</div>
+
+<div class="progress">
+  <div class="step-ind active" id="ind-1"><div class="step-circle"><span class="num">1</span></div><div class="step-lbl">Admin account</div></div>
+  <div class="step-ind"        id="ind-2"><div class="step-circle"><span class="num">2</span></div><div class="step-lbl">Two-factor auth</div></div>
+  <div class="step-ind"        id="ind-3"><div class="step-circle"><span class="num">3</span></div><div class="step-lbl">Azure AD</div></div>
+  <div class="step-ind"        id="ind-4"><div class="step-circle"><span class="num">4</span></div><div class="step-lbl">Done</div></div>
+</div>
+
+<div class="card">
+
+  <!-- ── Step 1: Account + timezone ── -->
+  <div class="step-panel active" id="panel-1">
+    <div class="card-header">
+      <h2>Create your admin account</h2>
+      <p>This account protects the dashboard and settings. Stored locally on your server — not connected to Microsoft.</p>
+    </div>
+    <div id="alert-1" class="alert error"></div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" type="text" autocomplete="username" placeholder="admin" autofocus>
+      </div>
+      <div class="field">
+        <label for="email">Email address</label>
+        <input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="grid-column: 1 / -1">
+        <label for="timezone">Timezone</label>
+        <select id="timezone">
+          <optgroup label="UTC">
+            <option value="UTC">UTC</option>
+          </optgroup>
+          <optgroup label="Europe">
+            <option value="Europe/Amsterdam">Amsterdam</option>
+            <option value="Europe/Athens">Athens</option>
+            <option value="Europe/Berlin">Berlin</option>
+            <option value="Europe/Brussels">Brussels</option>
+            <option value="Europe/Budapest">Budapest</option>
+            <option value="Europe/Copenhagen">Copenhagen</option>
+            <option value="Europe/Dublin">Dublin</option>
+            <option value="Europe/Helsinki">Helsinki</option>
+            <option value="Europe/Lisbon">Lisbon</option>
+            <option value="Europe/London">London</option>
+            <option value="Europe/Madrid">Madrid</option>
+            <option value="Europe/Moscow">Moscow</option>
+            <option value="Europe/Oslo">Oslo</option>
+            <option value="Europe/Paris">Paris</option>
+            <option value="Europe/Prague">Prague</option>
+            <option value="Europe/Rome">Rome</option>
+            <option value="Europe/Stockholm">Stockholm</option>
+            <option value="Europe/Vienna">Vienna</option>
+            <option value="Europe/Warsaw">Warsaw</option>
+            <option value="Europe/Zurich">Zurich</option>
+          </optgroup>
+          <optgroup label="Americas">
+            <option value="America/Anchorage">Anchorage</option>
+            <option value="America/Chicago">Chicago</option>
+            <option value="America/Denver">Denver</option>
+            <option value="America/Los_Angeles">Los Angeles</option>
+            <option value="America/New_York">New York</option>
+            <option value="America/Phoenix">Phoenix</option>
+            <option value="America/Sao_Paulo">São Paulo</option>
+            <option value="America/Toronto">Toronto</option>
+            <option value="America/Vancouver">Vancouver</option>
+          </optgroup>
+          <optgroup label="Asia / Pacific">
+            <option value="Asia/Bangkok">Bangkok</option>
+            <option value="Asia/Dubai">Dubai</option>
+            <option value="Asia/Hong_Kong">Hong Kong</option>
+            <option value="Asia/Jakarta">Jakarta</option>
+            <option value="Asia/Kolkata">Kolkata</option>
+            <option value="Asia/Riyadh">Riyadh</option>
+            <option value="Asia/Seoul">Seoul</option>
+            <option value="Asia/Shanghai">Shanghai</option>
+            <option value="Asia/Singapore">Singapore</option>
+            <option value="Asia/Tokyo">Tokyo</option>
+            <option value="Australia/Brisbane">Brisbane</option>
+            <option value="Australia/Melbourne">Melbourne</option>
+            <option value="Australia/Perth">Perth</option>
+            <option value="Australia/Sydney">Sydney</option>
+            <option value="Pacific/Auckland">Auckland</option>
+            <option value="Pacific/Honolulu">Honolulu</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="new-password" placeholder="Minimum 8 characters">
+      <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+    </div>
+    <div class="field">
+      <label for="confirm-password">Confirm password</label>
+      <input id="confirm-password" type="password" autocomplete="new-password" placeholder="Repeat password">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" id="btn-next-1">Continue →</button>
+    </div>
+  </div>
+
+  <!-- ── Step 2: 2FA ── -->
+  <div class="step-panel" id="panel-2">
+    <div class="card-header">
+      <h2>Two-factor authentication</h2>
+      <p>Scan the QR code with an authenticator app (Google Authenticator, Microsoft Authenticator, Authy) and enter the 6-digit code to verify.</p>
+    </div>
+    <div id="alert-2" class="alert error"></div>
+
+    <div class="twofa-wrap">
+      <div class="qr-box" id="qr-box">
+        <div class="qr-loading">Loading QR code…</div>
+      </div>
+      <div class="twofa-info">
+        <p>Can't scan? Enter this secret manually in your app:</p>
+        <div class="secret-display" id="totp-secret-display">—</div>
+        <div class="token-row">
+          <input id="totp-token" type="text" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+          <button class="btn-verify" id="btn-verify-totp">Verify</button>
+        </div>
+        <div class="verified-badge" id="verified-badge">✓ Verified — 2FA is enabled</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-secondary" id="btn-back-2">← Back</button>
+      <button class="btn-primary"   id="btn-next-2" disabled>Continue →</button>
+      <button class="btn-skip"      id="btn-skip-2">Skip — enable later</button>
+    </div>
+  </div>
+
+  <!-- ── Step 3: Azure AD ── -->
+  <div class="step-panel" id="panel-3">
+    <div class="card-header">
+      <h2>Connect to Azure AD</h2>
+      <p>Enter the credentials for the App Registration that will read your tenant's app secrets. You can skip this and configure it later in Settings.</p>
+    </div>
+
+    <div class="guide-box">
+      <h3>How to get these values</h3>
+      <div class="guide-steps">
+        <div class="guide-step"><div class="guide-num">1</div><div class="guide-text">In Azure Portal, create an <strong>App Registration</strong> for this monitor tool.</div></div>
+        <div class="guide-step"><div class="guide-num">2</div><div class="guide-text">Add <strong>API permission</strong>: Microsoft Graph → Application permissions → <code>Application.Read.All</code>, then grant admin consent.</div></div>
+        <div class="guide-step"><div class="guide-num">3</div><div class="guide-text">Create a <strong>Client Secret</strong> under Certificates &amp; secrets — copy the value immediately, it is only shown once.</div></div>
+        <div class="guide-step"><div class="guide-num">4</div><div class="guide-text">Copy the <strong>Tenant ID</strong> and <strong>Client ID</strong> from the app's Overview page.</div></div>
+      </div>
+    </div>
+
+    <div id="alert-3" class="alert error"></div>
+
+    <div class="field">
+      <label>Display name <span class="badge-opt">OPTIONAL</span></label>
+      <input id="tenantName" type="text" placeholder="e.g. Contoso Production" class="optional">
+    </div>
+    <div class="field">
+      <label>Tenant ID <span class="badge-opt">OPTIONAL</span></label>
+      <input id="tenantId" class="mono optional" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Client ID <span class="badge-opt">OPTIONAL</span></label>
+      <input id="clientId" class="mono optional" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Client Secret <span class="badge-opt">OPTIONAL</span></label>
+      <input id="clientSecret" class="optional" type="password" placeholder="Paste secret value" autocomplete="new-password">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-secondary" id="btn-back-3">← Back</button>
+      <button class="btn-primary"   id="btn-finish">Finish setup →</button>
+      <button class="btn-skip"      id="btn-skip-3">Skip for now</button>
+    </div>
+  </div>
+
+  <!-- ── Step 4: Done ── -->
+  <div class="step-panel" id="panel-4">
+    <div style="text-align:center">
+      <div class="done-icon">🎉</div>
+      <div class="card-header" style="margin-bottom:0">
+        <h2>Setup complete!</h2>
+        <p>Your monitor is ready. Sign in with the account you just created.</p>
+      </div>
+    </div>
+    <div class="success-list" id="success-list"></div>
+    <div class="btn-row" style="justify-content:center; margin-top:8px">
+      <a href="/login"><button class="btn-primary" style="padding:11px 40px">Go to sign in →</button></a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  const state = {
+    username: '', email: '', password: '', timezone: 'UTC',
+    enable2fa: false, totpVerified: false,
+    tenantId: '', clientId: '', clientSecret: '',
+  };
+
+  // ── Step helpers ───────────────────────────────────────────────────────────
+  function setStep(n) {
+    for (let i = 1; i <= 4; i++) {
+      document.getElementById(`ind-${i}`).className =
+        'step-ind' + (i < n ? ' done' : i === n ? ' active' : '');
+      document.getElementById(`panel-${i}`).className =
+        'step-panel' + (i === n ? ' active' : '');
+    }
+    if (n === 2) loadQR();
+  }
+
+  function showAlert(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = 'alert error show';
+  }
+  function clearAlert(id) {
+    document.getElementById(id).className = 'alert error';
+  }
+
+  // ── Password strength ──────────────────────────────────────────────────────
+  document.getElementById('password').addEventListener('input', e => {
+    const pw = e.target.value;
+    let s = 0;
+    if (pw.length >= 8)  s++;
+    if (pw.length >= 12) s++;
+    if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) s++;
+    if (/[0-9]/.test(pw)) s++;
+    if (/[^A-Za-z0-9]/.test(pw)) s++;
+    const fill   = document.getElementById('strength-fill');
+    const colors = ['','#d13438','#ca5010','#986f0b','#107c10','#107c10'];
+    fill.style.width = (s * 20) + '%';
+    fill.style.background = colors[s] || '';
+  });
+
+  // ── Step 1 → 2 ────────────────────────────────────────────────────────────
+  document.getElementById('btn-next-1').addEventListener('click', () => {
+    clearAlert('alert-1');
+    const u = document.getElementById('username').value.trim();
+    const e = document.getElementById('email').value.trim();
+    const p = document.getElementById('password').value;
+    const c = document.getElementById('confirm-password').value;
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (u.length < 3)      return showAlert('alert-1', 'Username must be at least 3 characters.');
+    if (!emailRe.test(e))  return showAlert('alert-1', 'Please enter a valid email address.');
+    if (p.length < 8)      return showAlert('alert-1', 'Password must be at least 8 characters.');
+    if (p !== c)           return showAlert('alert-1', 'Passwords do not match.');
+
+    state.username = u;
+    state.email    = e;
+    state.password = p;
+    state.timezone = document.getElementById('timezone').value;
+    setStep(2);
+  });
+
+  // ── Step 2: QR code ────────────────────────────────────────────────────────
+  async function loadQR() {
+    const box = document.getElementById('qr-box');
+    box.innerHTML = '<div class="qr-loading">Loading QR code…</div>';
+    document.getElementById('totp-secret-display').textContent = '—';
+    document.getElementById('btn-next-2').disabled = true;
+    document.getElementById('verified-badge').className = 'verified-badge';
+    clearAlert('alert-2');
+
+    try {
+      const res  = await fetch('/api/setup/totp');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const img = document.createElement('img');
+      img.src = data.qrDataUrl;
+      box.innerHTML = '';
+      box.appendChild(img);
+      document.getElementById('totp-secret-display').textContent = data.secret;
+    } catch (e) {
+      box.innerHTML = '<div class="qr-loading">Failed to load QR code.</div>';
+      showAlert('alert-2', e.message);
+    }
+  }
+
+  // Verify TOTP token
+  document.getElementById('btn-verify-totp').addEventListener('click', async () => {
+    clearAlert('alert-2');
+    const token = document.getElementById('totp-token').value.replace(/\s/g, '');
+    if (token.length !== 6) return showAlert('alert-2', 'Enter the 6-digit code from your authenticator app.');
+
+    const btn = document.getElementById('btn-verify-totp');
+    btn.disabled = true; btn.textContent = 'Verifying…';
+
+    try {
+      const res  = await fetch('/api/setup/totp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      state.enable2fa   = true;
+      state.totpVerified = true;
+      document.getElementById('verified-badge').className = 'verified-badge show';
+      document.getElementById('btn-next-2').disabled = false;
+    } catch (e) {
+      showAlert('alert-2', e.message);
+      document.getElementById('totp-token').value = '';
+      document.getElementById('totp-token').focus();
+    } finally {
+      btn.disabled = false; btn.textContent = 'Verify';
+    }
+  });
+
+  document.getElementById('totp-token').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btn-verify-totp').click();
+  });
+
+  document.getElementById('btn-back-2').addEventListener('click', () => setStep(1));
+
+  document.getElementById('btn-next-2').addEventListener('click', () => setStep(3));
+
+  document.getElementById('btn-skip-2').addEventListener('click', () => {
+    state.enable2fa    = false;
+    state.totpVerified = false;
+    setStep(3);
+  });
+
+  // ── Step 3: Azure AD ──────────────────────────────────────────────────────
+  document.getElementById('btn-back-3').addEventListener('click', () => setStep(2));
+
+  document.getElementById('btn-skip-3').addEventListener('click', () => {
+    state.tenantId = ''; state.clientId = ''; state.clientSecret = '';
+    submitSetup();
+  });
+
+  document.getElementById('btn-finish').addEventListener('click', () => {
+    clearAlert('alert-3');
+    const tid = document.getElementById('tenantId').value.trim();
+    const cid = document.getElementById('clientId').value.trim();
+    const cs  = document.getElementById('clientSecret').value;
+    const guidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (tid && !guidRe.test(tid)) return showAlert('alert-3', 'Tenant ID is not a valid GUID.');
+    if (cid && !guidRe.test(cid)) return showAlert('alert-3', 'Client ID is not a valid GUID.');
+    state.tenantName = document.getElementById('tenantName').value.trim();
+    state.tenantId = tid; state.clientId = cid; state.clientSecret = cs;
+    submitSetup();
+  });
+
+  async function submitSetup() {
+    const btn = document.getElementById('btn-finish');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    try {
+      const res  = await fetch('/api/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username:        state.username,
+          email:           state.email,
+          password:        state.password,
+          confirmPassword: state.password,
+          timezone:        state.timezone,
+          enable2fa:       state.enable2fa ? 'true' : 'false',
+          tenantName:      state.tenantName || '',
+          tenantId:        state.tenantId,
+          clientId:        state.clientId,
+          clientSecret:    state.clientSecret,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // Build summary
+      const list = document.getElementById('success-list');
+      const items = [
+        { text: `Admin account created (${state.username} · ${state.email})`, ok: true },
+        { text: state.enable2fa ? 'Two-factor authentication enabled' : 'Two-factor auth skipped — enable in Settings', ok: state.enable2fa },
+        { text: state.timezone + ' timezone configured',               ok: true },
+        { text: state.tenantId ? 'Azure AD credentials saved'         : 'Azure credentials — configure in Settings', ok: !!state.tenantId },
+      ];
+      list.innerHTML = items.map(i =>
+        `<div class="success-item"><div class="dot${i.ok ? '' : ' grey'}"></div>${i.text}</div>`
+      ).join('');
+
+      setStep(4);
+    } catch (e) {
+      showAlert('alert-3', e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Finish setup →';
+    }
+  }
+
+  // Pre-select user's local timezone if available
+  try {
+    const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const opt = document.querySelector(`#timezone option[value="${local}"]`);
+    if (opt) opt.selected = true;
+  } catch {}
+</script>
+</body>
+</html>
