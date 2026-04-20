@@ -63,7 +63,7 @@
     .test-label { font-size: 11px; color: var(--muted); }
 
     /* Toggle switch */
-    .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .toggle { position: relative; display: inline-flex; width: 36px; height: 20px; flex-shrink: 0; vertical-align: middle; }
     .toggle input { opacity: 0; width: 0; height: 0; }
     .toggle-track {
       position: absolute; inset: 0; border-radius: 10px;
@@ -252,6 +252,56 @@
   </div>
 
   <!-- Branding -->
+  <!-- Passkeys -->
+  <div style="margin-top:32px" id="section-passkeys">
+    <div class="page-header" style="margin-bottom:16px">
+      <h1>Passkeys</h1>
+      <span class="spacer"></span>
+      <button class="btn-primary" id="btn-add-passkey">+ Add passkey</button>
+    </div>
+    <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px">
+          Passkeys let you sign in with your device's biometrics (fingerprint, Face ID, Windows Hello) — no password needed.
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <label style="display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Domain (RP ID)</label>
+            <input id="rp-id-input" type="text" placeholder="auto-detect from request (leave blank for localhost)" style="width:100%;padding:7px 10px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px;font-family:monospace">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">Set to your hostname in production, e.g. <code>monitor.contoso.com</code>. Passkeys are bound to this domain and won't work if it changes.</div>
+          </div>
+          <button class="btn-secondary" id="btn-save-rp-id" style="white-space:nowrap">Save domain</button>
+        </div>
+        <div id="rp-id-alert" class="alert" style="margin-top:10px"></div>
+      </div>
+      <div id="passkeys-empty" style="padding:24px 20px;font-size:13px;color:var(--muted);display:none">No passkeys registered yet.</div>
+      <table class="data-table" id="passkeys-table" style="display:none">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Added</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="passkeys-tbody"></tbody>
+      </table>
+    </div>
+    <!-- Inline name form (shown when adding) -->
+    <div class="inline-form" id="passkey-name-form" style="display:none;margin-top:12px">
+      <h4>Name this passkey</h4>
+      <div id="passkey-form-alert" class="alert error"></div>
+      <div class="field" style="max-width:320px">
+        <label>Display name</label>
+        <input id="pk-name" type="text" placeholder="e.g. MacBook Touch ID" maxlength="64">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn-primary" id="pk-confirm">Register passkey</button>
+        <button class="btn-secondary" id="pk-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div style="margin-top:32px">
     <div class="page-header" style="margin-bottom:16px">
       <h1>Branding</h1>
@@ -354,13 +404,44 @@
             <th>Email</th>
             <th>Role</th>
             <th>Groups</th>
-            <th>Notifications</th>
+            <th title="Scheduled email report — user must have an email address set">Email reports</th>
             <th>Enabled</th>
             <th></th>
           </tr>
         </thead>
         <tbody id="users-tbody"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Audit log (admin only) -->
+  <div style="margin-top:32px;display:none" id="section-audit">
+    <div class="page-header" style="margin-bottom:16px">
+      <h1>Audit log</h1>
+      <span class="spacer"></span>
+      <input type="search" id="audit-search" placeholder="Filter…" style="padding:5px 12px;border:1px solid #c8c6c4;border-radius:16px;font-size:13px;width:200px">
+    </div>
+    <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <table class="data-table" id="audit-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Event</th>
+            <th>User</th>
+            <th>IP</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody id="audit-tbody"></tbody>
+      </table>
+      <div id="audit-empty" style="padding:24px 20px;font-size:13px;color:var(--muted);display:none">No log entries yet.</div>
+      <div id="audit-pager" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)">
+        <span id="audit-count"></span>
+        <span class="spacer" style="flex:1"></span>
+        <button class="btn-ghost" id="audit-prev" disabled>← Prev</button>
+        <span id="audit-page-lbl"></span>
+        <button class="btn-ghost" id="audit-next">Next →</button>
+      </div>
     </div>
   </div>
 
@@ -453,7 +534,8 @@
       </div>
 
       <div style="margin-bottom:24px">
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Notify when status is</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Include in report when status is</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Reports are sent on the schedule below — not in real-time when a status changes.</div>
         <div style="display:flex;gap:20px;flex-wrap:wrap">
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--red)">
             <input type="checkbox" id="notify-expired" checked> Expired
@@ -468,6 +550,14 @@
             <input type="checkbox" id="notify-notice"> Notice
           </label>
         </div>
+      </div>
+
+      <div style="margin-bottom:24px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Real-time status change alerts</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Send an immediate email whenever a secret worsens status (e.g. Notice → Warning), separate from the scheduled report.</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="notify-state-alerts"> Send alert when a secret's status worsens
+        </label>
       </div>
 
       <!-- SMTP fields -->
@@ -609,7 +699,8 @@
       if (currentUser.role === 'admin') {
         document.getElementById('section-users').style.display = '';
         document.getElementById('section-groups').style.display = '';
-        await Promise.all([loadUsers(), loadGroups()]);
+        document.getElementById('section-audit').style.display = '';
+        await Promise.all([loadUsers(), loadGroups(), loadAuditLog()]);
       }
     } catch {}
   }
@@ -882,8 +973,9 @@
       document.getElementById('mail-to').value           = c.to;
       document.getElementById('notify-expired').checked  = c.notifyExpired;
       document.getElementById('notify-critical').checked = c.notifyCritical;
-      document.getElementById('notify-warning').checked  = c.notifyWarning;
-      document.getElementById('notify-notice').checked   = c.notifyNotice;
+      document.getElementById('notify-warning').checked       = c.notifyWarning;
+      document.getElementById('notify-notice').checked        = c.notifyNotice;
+      document.getElementById('notify-state-alerts').checked  = c.stateAlerts;
       document.getElementById('smtp-host').value   = c.smtp.host;
       document.getElementById('smtp-port').value   = c.smtp.port;
       document.getElementById('smtp-user').value   = c.smtp.user;
@@ -913,6 +1005,7 @@
       notifyCritical: document.getElementById('notify-critical').checked,
       notifyWarning:  document.getElementById('notify-warning').checked,
       notifyNotice:   document.getElementById('notify-notice').checked,
+      stateAlerts:    document.getElementById('notify-state-alerts').checked,
       smtpHost:   document.getElementById('smtp-host').value,
       smtpPort:   document.getElementById('smtp-port').value,
       smtpUser:   document.getElementById('smtp-user').value,
@@ -1120,10 +1213,13 @@
         <td><span class="badge badge-${u.role}">${u.role}</span></td>
         <td>${groupNames}</td>
         <td>
-          <label class="toggle" title="Notifications">
-            <input type="checkbox" ${u.receiveNotifications ? 'checked' : ''} onchange="toggleUserNotifications('${u.id}', this)">
-            <div class="toggle-track"></div>
-          </label>
+          ${u.email
+            ? `<label class="toggle" title="${u.receiveNotifications ? 'Receives scheduled email reports' : 'Will not receive email reports'}">
+                <input type="checkbox" ${u.receiveNotifications ? 'checked' : ''} onchange="toggleUserNotifications('${u.id}', this)">
+                <div class="toggle-track"></div>
+               </label>`
+            : `<span style="font-size:12px;color:var(--muted)" title="Set an email address to enable reports">No email set</span>`
+          }
         </td>
         <td>
           <label class="toggle" title="${u.enabled !== false ? 'Enabled' : 'Disabled'}">
@@ -1431,6 +1527,206 @@
     toast('Group deleted.');
     await loadGroups();
   }
+
+  // ── Audit log ──────────────────────────────────────────────────────────────
+  const EVENT_LABELS = {
+    'login.success':         { label: 'Sign in',          color: '#107c10' },
+    'login.fail':            { label: 'Failed sign in',   color: '#d13438' },
+    'login.2fa.fail':        { label: 'Failed 2FA',       color: '#d13438' },
+    'login.passkey.fail':    { label: 'Failed passkey',   color: '#d13438' },
+    'logout':                { label: 'Sign out',         color: '#605e5c' },
+    'settings.thresholds':   { label: 'Thresholds',       color: '#0078d4' },
+    'settings.email':        { label: 'Email settings',   color: '#0078d4' },
+    'settings.email.schedule':{ label: 'Email schedule',  color: '#0078d4' },
+    'settings.rp-id':        { label: 'Domain',           color: '#0078d4' },
+    'settings.branding':     { label: 'Branding',         color: '#0078d4' },
+    'user.create':           { label: 'User created',     color: '#986f0b' },
+    'user.update':           { label: 'User updated',     color: '#986f0b' },
+    'user.delete':           { label: 'User deleted',     color: '#d13438' },
+    'group.create':          { label: 'Group created',    color: '#986f0b' },
+    'group.update':          { label: 'Group updated',    color: '#986f0b' },
+    'group.delete':          { label: 'Group deleted',    color: '#d13438' },
+    'tenant.create':         { label: 'Tenant added',     color: '#986f0b' },
+    'tenant.update':         { label: 'Tenant updated',   color: '#986f0b' },
+    'tenant.toggle':         { label: 'Tenant toggled',   color: '#605e5c' },
+    'tenant.delete':         { label: 'Tenant deleted',   color: '#d13438' },
+    'secret.add':            { label: 'Secret added',     color: '#107c10' },
+    'secret.remove':         { label: 'Secret removed',   color: '#ca5010' },
+    'app.delete':            { label: 'App deleted',      color: '#d13438' },
+    'passkey.register':      { label: 'Passkey added',    color: '#107c10' },
+    'passkey.delete':        { label: 'Passkey removed',  color: '#ca5010' },
+  };
+
+  let auditPage = 1;
+  let auditTotal = 0;
+  const AUDIT_LIMIT = 50;
+  let auditFilter = '';
+
+  async function loadAuditLog(page = 1) {
+    auditPage = page;
+    const params = new URLSearchParams({ page, limit: AUDIT_LIMIT });
+    if (auditFilter) params.set('filter', auditFilter);
+    const res  = await fetch(`/api/audit?${params}`);
+    const data = await res.json();
+    auditTotal = data.total;
+    renderAuditLog(data.entries);
+  }
+
+  function renderAuditLog(entries) {
+    const tbody  = document.getElementById('audit-tbody');
+    const empty  = document.getElementById('audit-empty');
+    const table  = document.getElementById('audit-table');
+    const count  = document.getElementById('audit-count');
+    tbody.innerHTML = '';
+    if (!entries.length) {
+      empty.style.display  = 'block';
+      table.style.display  = 'none';
+    } else {
+      empty.style.display  = 'none';
+      table.style.display  = '';
+    }
+    const totalPages = Math.ceil(auditTotal / AUDIT_LIMIT) || 1;
+    count.textContent = `${auditTotal} event${auditTotal !== 1 ? 's' : ''}`;
+    document.getElementById('audit-page-lbl').textContent = `Page ${auditPage} of ${totalPages}`;
+    document.getElementById('audit-prev').disabled = auditPage <= 1;
+    document.getElementById('audit-next').disabled = auditPage >= totalPages;
+
+    for (const e of entries) {
+      const meta  = EVENT_LABELS[e.event] || { label: e.event, color: '#605e5c' };
+      const d     = new Date(e.ts);
+      const ts    = d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) + ' ' +
+                    d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      const tr    = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-size:12px;white-space:nowrap;color:var(--muted)">${escA(ts)}</td>
+        <td><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;background:${meta.color}22;color:${meta.color}">${escA(meta.label)}</span></td>
+        <td style="font-size:13px">${escA(e.username || '—')}</td>
+        <td style="font-size:12px;color:var(--muted);font-family:monospace">${escA(e.ip || '—')}</td>
+        <td style="font-size:12px;color:var(--muted)">${escA(e.detail || '')}</td>`;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function escA(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  let auditSearchTimer;
+  document.getElementById('audit-search').addEventListener('input', e => {
+    clearTimeout(auditSearchTimer);
+    auditFilter = e.target.value.trim();
+    auditSearchTimer = setTimeout(() => loadAuditLog(1), 300);
+  });
+  document.getElementById('audit-prev').addEventListener('click', () => loadAuditLog(auditPage - 1));
+  document.getElementById('audit-next').addEventListener('click', () => loadAuditLog(auditPage + 1));
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@8/dist/bundle/index.umd.min.js"></script>
+<script>
+  // ── Passkeys ────────────────────────────────────────────────────────────────
+  let passkeys = [];
+
+  async function loadPasskeys() {
+    try {
+      const [pkRes, stRes] = await Promise.all([fetch('/api/passkeys'), fetch('/api/settings')]);
+      if (pkRes.ok)  { passkeys = await pkRes.json(); renderPasskeys(); }
+      if (stRes.ok)  { const s = await stRes.json(); document.getElementById('rp-id-input').value = s.rpId || ''; }
+    } catch {}
+  }
+
+  document.getElementById('btn-save-rp-id').addEventListener('click', async () => {
+    const alertEl = document.getElementById('rp-id-alert');
+    alertEl.className = 'alert'; alertEl.textContent = '';
+    const rpId = document.getElementById('rp-id-input').value.trim();
+    const res = await fetch('/api/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rpId }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alertEl.className = 'alert error show'; alertEl.textContent = data.error;
+    } else {
+      alertEl.className = 'alert success show'; alertEl.textContent = rpId ? `Domain set to "${rpId}".` : 'Domain cleared — will auto-detect from request.';
+    }
+  });
+
+  function renderPasskeys() {
+    const tbody = document.getElementById('passkeys-tbody');
+    const empty = document.getElementById('passkeys-empty');
+    const table = document.getElementById('passkeys-table');
+    tbody.innerHTML = '';
+    if (!passkeys.length) {
+      empty.style.display = 'block';
+      table.style.display = 'none';
+      return;
+    }
+    empty.style.display = 'none';
+    table.style.display = '';
+    for (const pk of passkeys) {
+      const tr = document.createElement('tr');
+      const icon = pk.deviceType === 'multiDevice' ? '☁️' : '🔑';
+      const backed = pk.backedUp ? ' · synced' : '';
+      tr.innerHTML = `
+        <td><strong>${esc(pk.name)}</strong></td>
+        <td style="font-size:12px;color:var(--muted)">${icon} ${pk.deviceType === 'multiDevice' ? 'Multi-device' : 'Single-device'}${backed}</td>
+        <td style="font-size:12px;color:var(--muted)">${new Date(pk.createdAt).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}</td>
+        <td style="text-align:right"><button class="btn-danger" data-id="${esc(pk.id)}">Remove</button></td>`;
+      tr.querySelector('.btn-danger').addEventListener('click', () => deletePasskey(pk.id, pk.name));
+      tbody.appendChild(tr);
+    }
+  }
+
+  async function deletePasskey(id, name) {
+    if (!confirm(`Remove passkey "${name}"?`)) return;
+    const res = await fetch(`/api/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (res.ok) { passkeys = passkeys.filter(p => p.id !== id); renderPasskeys(); toast('Passkey removed.'); }
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  document.getElementById('btn-add-passkey').addEventListener('click', () => {
+    document.getElementById('pk-name').value = '';
+    document.getElementById('passkey-form-alert').textContent = '';
+    document.getElementById('passkey-form-alert').style.display = 'none';
+    document.getElementById('passkey-name-form').style.display = '';
+    document.getElementById('pk-name').focus();
+  });
+
+  document.getElementById('pk-cancel').addEventListener('click', () => {
+    document.getElementById('passkey-name-form').style.display = 'none';
+  });
+
+  document.getElementById('pk-confirm').addEventListener('click', async () => {
+    const name = document.getElementById('pk-name').value.trim() || 'Passkey';
+    const alertEl = document.getElementById('passkey-form-alert');
+    alertEl.style.display = 'none';
+    const btn = document.getElementById('pk-confirm');
+    btn.disabled = true; btn.textContent = 'Waiting for device…';
+    try {
+      const optRes = await fetch('/api/passkeys/register/options');
+      const options = await optRes.json();
+      const regResult = await SimpleWebAuthnBrowser.startRegistration(options);
+      const verRes = await fetch('/api/passkeys/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response: regResult, name }),
+      });
+      const data = await verRes.json();
+      if (!verRes.ok) throw new Error(data.error || 'Registration failed.');
+      passkeys.push(data.passkey);
+      renderPasskeys();
+      document.getElementById('passkey-name-form').style.display = 'none';
+      toast('Passkey registered successfully.');
+    } catch (e) {
+      if (e.name !== 'NotAllowedError') {
+        alertEl.textContent = e.message;
+        alertEl.style.display = 'block';
+      }
+    } finally {
+      btn.disabled = false; btn.textContent = 'Register passkey';
+    }
+  });
+
+  loadPasskeys();
 </script>
 </body>
 </html>

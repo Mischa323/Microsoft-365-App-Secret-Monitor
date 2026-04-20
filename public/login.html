@@ -178,8 +178,23 @@
         <label for="password">Password</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required>
       </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+        <input type="checkbox" id="remember" name="remember" style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer">
+        <label for="remember" style="font-size:13px;color:#605e5c;cursor:pointer;user-select:none">Keep me signed in for 30 days</label>
+      </div>
       <button type="submit">Sign in</button>
     </form>
+
+    <div style="display:flex;align-items:center;gap:12px;margin:20px 0">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <span style="font-size:12px;color:#a19f9d">or</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
+
+    <button id="btn-passkey" type="button" style="width:100%;padding:11px;border:1px solid var(--border);background:white;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s,border-color .15s">
+      <span style="font-size:18px">🔑</span> Sign in with a passkey
+    </button>
+    <div id="passkey-error" style="display:none;margin-top:10px;padding:10px 12px;background:#fde7e9;border:1px solid #f1707b;border-radius:6px;color:#d13438;font-size:13px"></div>
 
     <div class="footer">
       This is a self-hosted tool. Credentials are verified server-side<br>and never sent to third parties.
@@ -196,6 +211,42 @@
   if (new URLSearchParams(location.search).get('error')) {
     document.getElementById('error-box').classList.add('show');
   }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@8/dist/bundle/index.umd.min.js"></script>
+<script>
+  const btnPasskey = document.getElementById('btn-passkey');
+  const passkeyErr = document.getElementById('passkey-error');
+
+  btnPasskey.addEventListener('mouseover', () => { btnPasskey.style.background = '#f3f2f1'; btnPasskey.style.borderColor = '#c8c6c4'; });
+  btnPasskey.addEventListener('mouseout',  () => { btnPasskey.style.background = 'white';   btnPasskey.style.borderColor = 'var(--border)'; });
+
+  btnPasskey.addEventListener('click', async () => {
+    passkeyErr.style.display = 'none';
+    btnPasskey.disabled = true;
+    btnPasskey.innerHTML = '<span style="font-size:18px">⏳</span> Waiting for device…';
+    try {
+      const optRes = await fetch('/api/passkeys/auth/options');
+      const options = await optRes.json();
+      const authResult = await SimpleWebAuthnBrowser.startAuthentication(options);
+      const remember   = document.getElementById('remember').checked;
+      const verRes = await fetch('/api/passkeys/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response: authResult, remember }),
+      });
+      const data = await verRes.json();
+      if (!verRes.ok) throw new Error(data.error || 'Authentication failed.');
+      window.location.href = '/dashboard';
+    } catch (e) {
+      if (e.name !== 'NotAllowedError') {
+        passkeyErr.textContent = e.message;
+        passkeyErr.style.display = 'block';
+      }
+    } finally {
+      btnPasskey.disabled = false;
+      btnPasskey.innerHTML = '<span style="font-size:18px">🔑</span> Sign in with a passkey';
+    }
+  });
 </script>
 </body>
 </html>

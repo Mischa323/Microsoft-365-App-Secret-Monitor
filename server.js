@@ -8,14 +8,22 @@ const bcrypt     = require('bcryptjs');
 const speakeasy  = require('speakeasy');
 const QRCode     = require('qrcode');
 const nodemailer = require('nodemailer');
+const {
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse,
+} = require('@simplewebauthn/server');
 
 const app          = express();
 const PORT         = process.env.PORT || 3000;
-const DATA_DIR     = process.env.DATA_DIR || __dirname;
-const ENV_PATH     = path.join(DATA_DIR, '.env');
-const TENANTS_PATH = path.join(DATA_DIR, 'tenants.json');
-const USERS_PATH   = path.join(DATA_DIR, 'users.json');
-const GROUPS_PATH  = path.join(DATA_DIR, 'groups.json');
+const DATA_DIR      = process.env.DATA_DIR || __dirname;
+const ENV_PATH      = path.join(DATA_DIR, '.env');
+const TENANTS_PATH  = path.join(DATA_DIR, 'tenants.json');
+const USERS_PATH    = path.join(DATA_DIR, 'users.json');
+const GROUPS_PATH   = path.join(DATA_DIR, 'groups.json');
+const STATES_PATH   = path.join(DATA_DIR, 'secret-states.json');
+const AUDIT_PATH    = path.join(DATA_DIR, 'audit.log');
 
 // ── Write threshold defaults to .env if not already set ───────────────────────
 (function applyThresholdDefaults() {
@@ -112,7 +120,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'fallback-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 8 * 60 * 60 * 1000 },
+  cookie: { maxAge: 8 * 60 * 60 * 1000 }, // default 8 h; overridden to 30 d when "remember me" is checked
 }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -305,8 +313,10 @@ app.get('/login', requireSetup, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+const REMEMBER_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+
 app.post('/login', requireSetup, async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, remember } = req.body;
   const id = (username || '').trim().toLowerCase();
 
   const users = loadUsers();
@@ -314,19 +324,30 @@ app.post('/login', requireSetup, async (req, res) => {
     u.username.toLowerCase() === id || u.email.toLowerCase() === id
   );
 
-  if (!user || user.enabled === false) return res.redirect('/login?error=1');
+  if (!user || user.enabled === false) {
+    audit(req, 'login.fail', `username: ${id}`);
+    return res.redirect('/login?error=1');
+  }
 
   const ok = user.passwordHash && await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return res.redirect('/login?error=1');
+  if (!ok) {
+    audit(req, 'login.fail', `username: ${id}`);
+    return res.redirect('/login?error=1');
+  }
 
   if (user.totpEnabled) {
     req.session.pendingUserId = user.id;
-    req.session.pendingAuth = true; // legacy compat
+    req.session.pendingAuth   = true; // legacy compat
+    req.session.pendingRemember = (remember === 'on' || remember === 'true' || remember === '1');
     return res.redirect('/login/2fa');
   }
 
+  if (remember === 'on' || remember === 'true' || remember === '1')
+    req.session.cookie.maxAge = REMEMBER_MAX_AGE;
   req.session.userId = user.id;
   req.session.authenticated = undefined;
+  req.user = user;
+  audit(req, 'login.success', 'password');
   res.redirect('/dashboard');
 });
 
@@ -364,16 +385,26 @@ app.post('/login/2fa', requireSetup, (req, res) => {
     secret: totpSecret, encoding: 'base32',
     token: req.body.token, window: 1,
   });
-  if (!valid) return res.redirect('/login/2fa?error=1');
+  if (!valid) {
+    audit(req, 'login.2fa.fail', '');
+    return res.redirect('/login/2fa?error=1');
+  }
 
+  const remember = req.session.pendingRemember;
   delete req.session.pendingAuth;
   delete req.session.pendingUserId;
+  delete req.session.pendingRemember;
+  if (remember) req.session.cookie.maxAge = REMEMBER_MAX_AGE;
   req.session.userId = userId;
   req.session.authenticated = undefined;
+  const u2fa = loadUsers().find(u => u.id === userId);
+  req.user = u2fa;
+  audit(req, 'login.success', 'password + 2FA');
   res.redirect('/dashboard');
 });
 
 app.post('/logout', (req, res) => {
+  audit(req, 'logout', '');
   req.session.destroy(() => res.redirect('/login'));
 });
 
@@ -430,6 +461,7 @@ app.post('/api/users', requireAdmin, async (req, res) => {
     };
     users.push(user);
     saveUsers(users);
+    audit(req, 'user.create', `username=${username} role=${role}`);
     res.json(sanitizeUser(user));
   } catch (e) {
     res.status(500).json({ error: 'Failed to create user: ' + e.message });
@@ -490,6 +522,7 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
     users[idx].enabled = enabled !== false && enabled !== 'false';
 
   saveUsers(users);
+  audit(req, 'user.update', `userId=${req.params.id}`);
   res.json(sanitizeUser(users[idx]));
 });
 
@@ -509,7 +542,9 @@ app.delete('/api/users/:id', requireAdmin, (req, res) => {
       return res.status(400).json({ error: 'Cannot delete the last admin.' });
   }
 
+  const delUser = users.find(u => u.id === req.params.id);
   saveUsers(users.filter(u => u.id !== req.params.id));
+  audit(req, 'user.delete', `username=${delUser?.username}`);
   res.json({ ok: true });
 });
 
@@ -531,6 +566,7 @@ app.post('/api/groups', requireAdmin, (req, res) => {
   };
   groups.push(group);
   saveGroups(groups);
+  audit(req, 'group.create', `name=${name}`);
   res.json(group);
 });
 
@@ -548,6 +584,7 @@ app.put('/api/groups/:id', requireAdmin, (req, res) => {
     groups[idx].tenantIds = Array.isArray(tenantIds) ? tenantIds : ['all'];
 
   saveGroups(groups);
+  audit(req, 'group.update', `groupId=${req.params.id}`);
   res.json(groups[idx]);
 });
 
@@ -555,7 +592,9 @@ app.delete('/api/groups/:id', requireAdmin, (req, res) => {
   const groups = loadGroups();
   if (!groups.find(g => g.id === req.params.id))
     return res.status(404).json({ error: 'Group not found.' });
+  const delGroup = groups.find(g => g.id === req.params.id);
   saveGroups(groups.filter(g => g.id !== req.params.id));
+  audit(req, 'group.delete', `name=${delGroup?.name}`);
   res.json({ ok: true });
 });
 
@@ -598,6 +637,7 @@ app.post('/api/logo', requireLogin, (req, res) => {
     fs.writeFileSync(ENV_PATH, env);
   } catch (e) { console.error('Could not update .env:', e.message); }
 
+  audit(req, 'settings.branding', `uploaded ${filename}`);
   res.json({ url: `/uploads/${filename}` });
 });
 
@@ -613,12 +653,56 @@ app.delete('/api/logo', requireLogin, (req, res) => {
     env = setEnvVar(env, 'LOGO_FILE', '');
     fs.writeFileSync(ENV_PATH, env);
   } catch (e) { console.error('Could not update .env:', e.message); }
+  audit(req, 'settings.branding', 'logo removed');
   res.json({ ok: true });
 });
 
-// ── API: general settings (timezone only) ────────────────────────────────────
+// ── API: general settings ─────────────────────────────────────────────────────
 app.get('/api/settings', requireLogin, (req, res) => {
-  res.json({ timezone: process.env.TIMEZONE || 'UTC', thresholds: getThresholds() });
+  res.json({
+    timezone:  process.env.TIMEZONE     || 'UTC',
+    thresholds: getThresholds(),
+    rpId:      process.env.WEBAUTHN_RP_ID || '',
+  });
+});
+
+app.post('/api/settings', requireLogin, (req, res) => {
+  const rpId = (req.body.rpId || '').trim().toLowerCase();
+  // Basic hostname validation — allow empty (auto-detect) or a plain hostname/domain
+  if (rpId && !/^[a-z0-9][a-z0-9.\-]*[a-z0-9]$/.test(rpId))
+    return res.status(400).json({ error: 'Invalid domain. Use a plain hostname like monitor.contoso.com' });
+  let env = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
+  env = setEnvVar(env, 'WEBAUTHN_RP_ID', rpId);
+  fs.writeFileSync(ENV_PATH, env);
+  process.env.WEBAUTHN_RP_ID = rpId;
+  audit(req, 'settings.rp-id', `rpId=${rpId || '(auto)'}`);
+  res.json({ ok: true });
+});
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+function audit(req, event, detail = '') {
+  const entry = {
+    ts:       new Date().toISOString(),
+    event,
+    detail,
+    username: req.user ? req.user.username : (req.session?.pendingUserId ? '(pending 2fa)' : '(unauthenticated)'),
+    userId:   req.user ? req.user.id : null,
+    ip:       req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || '',
+  };
+  try { fs.appendFileSync(AUDIT_PATH, JSON.stringify(entry) + '\n'); } catch {}
+}
+
+app.get('/api/audit', requireAdmin, (req, res) => {
+  if (!fs.existsSync(AUDIT_PATH)) return res.json([]);
+  const lines = fs.readFileSync(AUDIT_PATH, 'utf8').split('\n').filter(Boolean);
+  const page  = Math.max(1, parseInt(req.query.page)  || 1);
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 100));
+  const filter = (req.query.filter || '').toLowerCase();
+  let entries = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean).reverse();
+  if (filter) entries = entries.filter(e => e.event.includes(filter) || e.username.includes(filter) || (e.detail || '').toLowerCase().includes(filter));
+  const total = entries.length;
+  entries = entries.slice((page - 1) * limit, page * limit);
+  res.json({ total, page, limit, entries });
 });
 
 app.post('/api/thresholds', requireLogin, (req, res) => {
@@ -635,6 +719,7 @@ app.post('/api/thresholds', requireLogin, (req, res) => {
   process.env.THRESHOLD_CRITICAL = critical;
   process.env.THRESHOLD_WARNING  = warning;
   process.env.THRESHOLD_NOTICE   = notice;
+  audit(req, 'settings.thresholds', `critical=${critical} warning=${warning} notice=${notice}`);
   res.json({ ok: true });
 });
 
@@ -648,6 +733,7 @@ function getMailConfig() {
     notifyCritical: process.env.MAIL_NOTIFY_CRITICAL !== 'false',
     notifyWarning:  process.env.MAIL_NOTIFY_WARNING  === 'true',
     notifyNotice:   process.env.MAIL_NOTIFY_NOTICE   === 'true',
+    stateAlerts:    process.env.MAIL_STATE_ALERTS    === 'true',
     tenantIds:      process.env.MAIL_TENANT_IDS || 'all',
     smtp: {
       host:   process.env.SMTP_HOST   || '',
@@ -672,6 +758,7 @@ function saveMailConfig(cfg, smtpPass) {
     MAIL_NOTIFY_CRITICAL: cfg.notifyCritical ? 'true' : 'false',
     MAIL_NOTIFY_WARNING:  cfg.notifyWarning  ? 'true' : 'false',
     MAIL_NOTIFY_NOTICE:   cfg.notifyNotice   ? 'true' : 'false',
+    MAIL_STATE_ALERTS:    cfg.stateAlerts    ? 'true' : 'false',
     MAIL_TENANT_IDS:      cfg.tenantIds || 'all',
     SMTP_HOST:   cfg.smtp.host,
     SMTP_PORT:   String(cfg.smtp.port || 587),
@@ -823,10 +910,12 @@ app.post('/api/email', requireLogin, (req, res) => {
     notifyCritical: b.notifyCritical !== false && b.notifyCritical !== 'false',
     notifyWarning:  b.notifyWarning  === true  || b.notifyWarning  === 'true',
     notifyNotice:   b.notifyNotice   === true  || b.notifyNotice   === 'true',
+    stateAlerts:    b.stateAlerts    === true  || b.stateAlerts    === 'true',
     tenantIds:      Array.isArray(b.tenantIds) ? (b.tenantIds.length ? b.tenantIds.join(',') : 'all') : (b.tenantIds || 'all'),
     smtp:  { host: b.smtpHost || '', port: parseInt(b.smtpPort) || 587, secure: b.smtpSecure === true || b.smtpSecure === 'true', user: b.smtpUser || '', from: b.smtpFrom || '' },
     graph: { tenantRecordId: b.graphTenantId || '', sender: b.graphSender || '' },
   }, b.smtpPass);
+  audit(req, 'settings.email', `enabled=${b.enabled} method=${b.method || 'smtp'}`);
   res.json({ ok: true });
 });
 
@@ -897,6 +986,98 @@ async function runScheduledReport() {
 
 setInterval(runScheduledReport, 60_000); // check every minute
 
+// ── State-change alerts ───────────────────────────────────────────────────────
+const STATUS_SEVERITY = { none: 0, ok: 1, notice: 2, warning: 3, critical: 4, expired: 5 };
+
+function loadSecretStates() {
+  if (!fs.existsSync(STATES_PATH)) return {};
+  try { return JSON.parse(fs.readFileSync(STATES_PATH, 'utf8')); } catch { return {}; }
+}
+function saveSecretStates(states) {
+  fs.writeFileSync(STATES_PATH, JSON.stringify(states));
+}
+
+function buildStateChangeHtml(changes) {
+  const rows = changes.map(c => {
+    const fromColor = statusColor(c.from);
+    const toColor   = statusColor(c.to);
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #edebe9;font-size:13px">${c.tenantName}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #edebe9;font-size:13px"><strong>${c.appName}</strong></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #edebe9;font-size:13px">${c.secretName}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #edebe9;font-size:13px">
+        <span style="color:${fromColor};font-weight:600">${c.from}</span>
+        &nbsp;→&nbsp;
+        <span style="color:${toColor};font-weight:600">${c.to}</span>
+      </td>
+      <td style="padding:8px 12px;border-bottom:1px solid #edebe9;font-size:13px;color:${toColor};font-weight:600">${c.daysLeft < 0 ? Math.abs(c.daysLeft) + 'd ago' : (c.daysLeft === null ? '—' : c.daysLeft + 'd')}</td>
+    </tr>`;
+  }).join('');
+  return `<!DOCTYPE html><html><body style="font-family:'Segoe UI',system-ui,sans-serif;background:#f3f2f1;margin:0;padding:32px 24px">
+  <div style="max-width:700px;margin:0 auto">
+    <div style="background:#0078d4;color:white;border-radius:8px 8px 0 0;padding:24px 28px">
+      <h2 style="margin:0;font-size:20px">🔐 App Secret Monitor — Status Change Alert</h2>
+      <p style="margin:6px 0 0;opacity:.85;font-size:13px">Detected ${new Date().toLocaleString('en-GB')}</p>
+    </div>
+    <div style="background:white;border-radius:0 0 8px 8px;padding:24px 28px;border:1px solid #edebe9;border-top:none">
+      <p style="margin:0 0 16px;font-size:14px;color:#605e5c">The following app secrets changed to a more critical status:</p>
+      <table style="width:100%;border-collapse:collapse;background:white;border-radius:6px;overflow:hidden;border:1px solid #edebe9">
+        <thead><tr style="background:#f8f7f6">
+          <th style="padding:8px 12px;text-align:left;font-size:11px;color:#605e5c;text-transform:uppercase">Tenant</th>
+          <th style="padding:8px 12px;text-align:left;font-size:11px;color:#605e5c;text-transform:uppercase">Application</th>
+          <th style="padding:8px 12px;text-align:left;font-size:11px;color:#605e5c;text-transform:uppercase">Secret</th>
+          <th style="padding:8px 12px;text-align:left;font-size:11px;color:#605e5c;text-transform:uppercase">Status change</th>
+          <th style="padding:8px 12px;text-align:left;font-size:11px;color:#605e5c;text-transform:uppercase">Days left</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div></body></html>`;
+}
+
+async function checkStateChanges() {
+  const cfg = getMailConfig();
+  if (!cfg.enabled || !cfg.stateAlerts) return;
+  try {
+    const allRows    = await fetchReportRows();
+    const prevStates = loadSecretStates();
+    const newStates  = {};
+    const changes    = [];
+
+    for (const r of allRows) {
+      const key = `${r.tenantRecordId}::${r.appId}::${r.keyId || 'none'}`;
+      newStates[key] = r.status;
+      const prev = prevStates[key];
+      if (prev && prev !== r.status &&
+          (STATUS_SEVERITY[r.status] || 0) > (STATUS_SEVERITY[prev] || 0)) {
+        changes.push({ ...r, from: prev, to: r.status });
+      }
+    }
+    saveSecretStates(newStates);
+
+    if (changes.length === 0) return;
+
+    const subject = `App Secret Status Change Alert – ${changes.length} secret${changes.length > 1 ? 's' : ''} worsened`;
+    const notifyUsers = loadUsers().filter(u => u.receiveNotifications && u.enabled !== false && u.email);
+
+    if (notifyUsers.length === 0) {
+      await sendMail(subject, buildStateChangeHtml(changes));
+      return;
+    }
+    await Promise.allSettled(notifyUsers.map(async user => {
+      const accessibleTenantIds = getUserTenantIds(user);
+      let userChanges = accessibleTenantIds
+        ? changes.filter(c => accessibleTenantIds.includes(c.tenantRecordId))
+        : changes;
+      if (userChanges.length === 0) return;
+      await sendMailTo(user.email, subject, buildStateChangeHtml(userChanges));
+    }));
+    console.log(`[state-alerts] Sent alerts for ${changes.length} status change(s).`);
+  } catch (e) { console.error('[state-alerts] Failed:', e.message); }
+}
+
+setInterval(checkStateChanges, 15 * 60 * 1000); // check every 15 minutes
+
 app.get('/api/email/schedule', requireLogin, (req, res) => res.json(getScheduleConfig()));
 
 app.post('/api/email/schedule', requireLogin, (req, res) => {
@@ -912,6 +1093,7 @@ app.post('/api/email/schedule', requireLogin, (req, res) => {
   let env = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
   for (const [k, v] of Object.entries(keys)) { env = setEnvVar(env, k, v); process.env[k] = v; }
   fs.writeFileSync(ENV_PATH, env);
+  audit(req, 'settings.email.schedule', `freq=${freq} time=${time}`);
   res.json({ ok: true });
 });
 
@@ -964,6 +1146,7 @@ app.post('/api/tenants', requireAdmin, (req, res) => {
   };
   tenants.push(entry);
   saveTenants(tenants);
+  audit(req, 'tenant.create', `name=${name}`);
   res.json(sanitizeTenant(entry));
 });
 
@@ -986,6 +1169,7 @@ app.put('/api/tenants/:id', requireAdmin, (req, res) => {
   tenants[idx].clientId = clientId;
   if (clientSecret) tenants[idx].clientSecret = clientSecret;
   saveTenants(tenants);
+  audit(req, 'tenant.update', `name=${tenants[idx].name}`);
   res.json(sanitizeTenant(tenants[idx]));
 });
 
@@ -995,6 +1179,7 @@ app.patch('/api/tenants/:id/toggle', requireAdmin, (req, res) => {
   if (!t) return res.status(404).json({ error: 'Tenant not found.' });
   t.enabled = !t.enabled;
   saveTenants(tenants);
+  audit(req, 'tenant.toggle', `name=${t.name} enabled=${t.enabled}`);
   res.json({ enabled: t.enabled });
 });
 
@@ -1002,7 +1187,9 @@ app.delete('/api/tenants/:id', requireAdmin, (req, res) => {
   const tenants = loadTenants();
   if (!tenants.find(t => t.id === req.params.id))
     return res.status(404).json({ error: 'Tenant not found.' });
+  const delTenant = tenants.find(t => t.id === req.params.id);
   saveTenants(tenants.filter(t => t.id !== req.params.id));
+  audit(req, 'tenant.delete', `name=${delTenant?.name}`);
   res.json({ ok: true });
 });
 
@@ -1090,9 +1277,49 @@ app.post('/api/secrets/remove', requireLogin, async (req, res) => {
       const data = await resp.json().catch(() => ({}));
       throw new Error(data.error?.message || `Graph ${resp.status}`);
     }
+    audit(req, 'secret.remove', `objectId=${objectId} keyId=${keyId} tenant=${tenant.name}`);
     res.json({ ok: true });
   } catch (e) {
     console.error('Remove secret error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── API: add a new secret to an app registration ─────────────────────────────
+app.post('/api/secrets/add', requireLogin, async (req, res) => {
+  const { tenantRecordId, objectId, displayName, endDateTime } = req.body;
+  if (!tenantRecordId || !objectId || !displayName)
+    return res.status(400).json({ error: 'Missing required fields.' });
+
+  const tenant = loadTenants().find(t => t.id === tenantRecordId);
+  if (!tenant) return res.status(404).json({ error: 'Tenant not found.' });
+
+  try {
+    const token = await getGraphToken(tenant.tenantId, tenant.clientId, tenant.clientSecret);
+    const roles = getTokenRoles(token);
+    if (!roles.includes('Application.ReadWrite.All'))
+      return res.status(403).json({
+        error: 'Permission denied. Grant Application.ReadWrite.All to this app registration in Azure Portal.',
+      });
+
+    const credential = { displayName };
+    if (endDateTime) credential.endDateTime = endDateTime;
+
+    const resp = await fetch(
+      `https://graph.microsoft.com/v1.0/applications/${objectId}/addPassword`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passwordCredential: credential }),
+      },
+    );
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error?.message || `Graph ${resp.status}`);
+    // secretText is only returned once — pass it back to the client now
+    audit(req, 'secret.add', `objectId=${objectId} name=${displayName} tenant=${tenant.name}`);
+    res.json({ ok: true, keyId: data.keyId, secretText: data.secretText, endDateTime: data.endDateTime });
+  } catch (e) {
+    console.error('Add secret error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1116,10 +1343,165 @@ app.delete('/api/apps/:objectId', requireLogin, async (req, res) => {
       const data = await resp.json().catch(() => ({}));
       throw new Error(data.error?.message || `Graph ${resp.status}`);
     }
+    audit(req, 'app.delete', `objectId=${objectId} tenant=${tenant.name}`);
     res.json({ ok: true });
   } catch (e) {
     console.error('Delete app error:', e.message);
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Passkeys (WebAuthn) ───────────────────────────────────────────────────────
+const WEBAUTHN_RP_NAME = 'M365 App Secret Monitor';
+
+function getRpId(req) {
+  return process.env.WEBAUTHN_RP_ID || req.hostname || 'localhost';
+}
+function getOrigin(req) {
+  return req.headers.origin || `${req.protocol}://${req.get('host')}`;
+}
+
+// Registration options (must be logged in)
+app.get('/api/passkeys/register/options', requireLogin, async (req, res) => {
+  const rpID = getRpId(req);
+  const existing = (req.user.passkeys || []).map(pk => ({
+    id: Buffer.from(pk.id, 'base64url'),
+    type: 'public-key',
+    transports: pk.transports || [],
+  }));
+  const options = await generateRegistrationOptions({
+    rpName: WEBAUTHN_RP_NAME,
+    rpID,
+    userID: req.user.id,
+    userName: req.user.username,
+    userDisplayName: req.user.username,
+    attestationType: 'none',
+    excludeCredentials: existing,
+    authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
+  });
+  req.session.passkeyChallenge = options.challenge;
+  res.json(options);
+});
+
+// Verify registration (must be logged in)
+app.post('/api/passkeys/register', requireLogin, async (req, res) => {
+  const { response, name } = req.body;
+  const expectedChallenge = req.session.passkeyChallenge;
+  if (!expectedChallenge) return res.status(400).json({ error: 'No active challenge — start registration first.' });
+  try {
+    const verification = await verifyRegistrationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: getOrigin(req),
+      expectedRPID: getRpId(req),
+      requireUserVerification: false,
+    });
+    if (!verification.verified || !verification.registrationInfo)
+      return res.status(400).json({ error: 'Verification failed.' });
+    const { credentialID, credentialPublicKey, counter, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
+    const passkey = {
+      id:         Buffer.from(credentialID).toString('base64url'),
+      publicKey:  Buffer.from(credentialPublicKey).toString('base64url'),
+      counter,
+      deviceType: credentialDeviceType,
+      backedUp:   credentialBackedUp,
+      transports: response.response?.transports || [],
+      name:       (name || 'Passkey').slice(0, 64),
+      createdAt:  new Date().toISOString(),
+    };
+    const users = loadUsers();
+    const idx = users.findIndex(u => u.id === req.user.id);
+    if (!users[idx].passkeys) users[idx].passkeys = [];
+    users[idx].passkeys.push(passkey);
+    saveUsers(users);
+    delete req.session.passkeyChallenge;
+    audit(req, 'passkey.register', `name=${passkey.name}`);
+    res.json({ ok: true, passkey: { id: passkey.id, name: passkey.name, createdAt: passkey.createdAt } });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// List passkeys for logged-in user
+app.get('/api/passkeys', requireLogin, (req, res) => {
+  res.json((req.user.passkeys || []).map(pk => ({
+    id: pk.id, name: pk.name, createdAt: pk.createdAt,
+    backedUp: pk.backedUp, deviceType: pk.deviceType,
+  })));
+});
+
+// Delete a passkey
+app.delete('/api/passkeys/:id', requireLogin, (req, res) => {
+  const users = loadUsers();
+  const idx = users.findIndex(u => u.id === req.user.id);
+  const before = (users[idx].passkeys || []).length;
+  const delPk = (users[idx].passkeys || []).find(pk => pk.id === req.params.id);
+  users[idx].passkeys = (users[idx].passkeys || []).filter(pk => pk.id !== req.params.id);
+  if (users[idx].passkeys.length === before) return res.status(404).json({ error: 'Passkey not found.' });
+  saveUsers(users);
+  audit(req, 'passkey.delete', `name=${delPk?.name}`);
+  res.json({ ok: true });
+});
+
+// Auth options (no login needed — called during the login flow)
+app.get('/api/passkeys/auth/options', async (req, res) => {
+  const options = await generateAuthenticationOptions({
+    rpID: getRpId(req),
+    userVerification: 'preferred',
+    allowCredentials: [],
+  });
+  req.session.passkeyChallenge = options.challenge;
+  res.json(options);
+});
+
+// Verify auth / log in via passkey
+app.post('/api/passkeys/auth', async (req, res) => {
+  const { response, remember } = req.body;
+  const expectedChallenge = req.session.passkeyChallenge;
+  if (!expectedChallenge) return res.status(400).json({ error: 'No active challenge.' });
+
+  const credId = response.id;
+  const users  = loadUsers();
+  let targetUser = null, targetPasskey = null;
+  for (const u of users) {
+    const pk = (u.passkeys || []).find(p => p.id === credId);
+    if (pk) { targetUser = u; targetPasskey = pk; break; }
+  }
+  if (!targetUser) return res.status(400).json({ error: 'Passkey not recognised.' });
+  if (targetUser.enabled === false) return res.status(403).json({ error: 'Account is disabled.' });
+
+  try {
+    const verification = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: getOrigin(req),
+      expectedRPID: getRpId(req),
+      authenticator: {
+        credentialID:        Buffer.from(targetPasskey.id, 'base64url'),
+        credentialPublicKey: Buffer.from(targetPasskey.publicKey, 'base64url'),
+        counter:             targetPasskey.counter,
+        transports:          targetPasskey.transports || [],
+      },
+      requireUserVerification: false,
+    });
+    if (!verification.verified) return res.status(400).json({ error: 'Verification failed.' });
+
+    // Update replay counter
+    const ui  = users.findIndex(u => u.id === targetUser.id);
+    const pki = users[ui].passkeys.findIndex(p => p.id === credId);
+    users[ui].passkeys[pki].counter = verification.authenticationInfo.newCounter;
+    saveUsers(users);
+
+    delete req.session.passkeyChallenge;
+    if (remember) req.session.cookie.maxAge = REMEMBER_MAX_AGE;
+    req.session.userId = targetUser.id;
+    req.session.authenticated = undefined;
+    req.user = targetUser;
+    audit(req, 'login.success', 'passkey');
+    res.json({ ok: true });
+  } catch (e) {
+    audit(req, 'login.passkey.fail', e.message);
+    res.status(400).json({ error: e.message });
   }
 });
 

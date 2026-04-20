@@ -7,130 +7,111 @@
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
-      --blue: #0078d4;
-      --blue-dark: #005a9e;
-      --surface: #f3f2f1;
-      --card: #ffffff;
-      --text: #201f1e;
-      --muted: #605e5c;
-      --border: #edebe9;
-      --red: #d13438;
-      --orange: #ca5010;
-      --yellow: #986f0b;
-      --green: #107c10;
-      --red-bg: #fde7e9;
-      --orange-bg: #fdf3ec;
-      --yellow-bg: #fef9ec;
-      --green-bg: #dff6dd;
+      --blue: #0078d4; --blue-dark: #005a9e;
+      --surface: #f3f2f1; --card: #ffffff; --text: #201f1e; --muted: #605e5c; --border: #edebe9;
+      --red: #d13438; --orange: #ca5010; --yellow: #986f0b; --green: #107c10;
+      --red-bg: #fde7e9; --orange-bg: #fdf3ec; --yellow-bg: #fef9ec; --green-bg: #dff6dd;
     }
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--surface); color: var(--text); min-height: 100vh; }
 
-    /* Header */
-    header {
-      background: var(--blue);
-      color: white;
-      height: 48px;
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
+    header { background: var(--blue); color: white; height: 48px; padding: 0 24px; display: flex; align-items: center; gap: 12px; }
     header .brand { font-size: 15px; font-weight: 600; }
     header nav { display: flex; gap: 4px; margin-left: 24px; }
-    header nav a {
-      color: rgba(255,255,255,0.8);
-      text-decoration: none;
-      font-size: 14px;
-      padding: 4px 12px;
-      border-radius: 4px;
-    }
-    header nav a:hover { background: rgba(255,255,255,0.1); color: white; }
-    header nav a.active { background: rgba(255,255,255,0.15); color: white; }
+    header nav a { color: rgba(255,255,255,.8); text-decoration: none; font-size: 14px; padding: 4px 12px; border-radius: 4px; }
+    header nav a:hover { background: rgba(255,255,255,.1); color: white; }
+    header nav a.active { background: rgba(255,255,255,.15); color: white; }
     header .spacer { flex: 1; }
-    header .signout {
-      background: rgba(255,255,255,0.12);
-      border: 1px solid rgba(255,255,255,0.25);
-      color: white;
-      padding: 4px 14px;
-      border-radius: 4px;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    header .signout:hover { background: rgba(255,255,255,0.22); }
+    header .signout { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); color: white; padding: 4px 14px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+    header .signout:hover { background: rgba(255,255,255,.22); }
 
     main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
 
     /* Dash header */
-    .dash-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
-    .dash-header h1 { font-size: 22px; }
+    .dash-header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; }
+    .breadcrumb h1 { font-size: 22px; }
+    .breadcrumb .sep { color: var(--muted); font-size: 18px; }
+    .breadcrumb .tenant-crumb { font-size: 22px; color: var(--muted); }
+    #btn-back { display: none; background: white; border: 1px solid #c8c6c4; color: var(--text); padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    #btn-back:hover { background: var(--surface); }
     .dash-header .spacer { flex: 1; }
     .last-refresh { font-size: 12px; color: var(--muted); }
-    #btn-refresh {
-      background: white;
-      border: 1px solid #c8c6c4;
-      color: var(--text);
-      padding: 6px 16px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 13px;
-    }
+    #btn-refresh { background: white; border: 1px solid #c8c6c4; color: var(--text); padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
     #btn-refresh:hover { background: var(--surface); }
-    #btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+    #btn-refresh:disabled { opacity: .5; cursor: not-allowed; }
 
-    /* Stats */
-    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; margin-bottom: 24px; }
-    .stat-card { background: var(--card); border-radius: 6px; padding: 16px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid transparent; }
-    .stat-card .num { font-size: 28px; font-weight: 700; line-height: 1; }
-    .stat-card .lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    /* Loading / error */
+    #loading { display: none; text-align: center; padding: 60px 24px; color: var(--muted); }
+    .spinner { width: 36px; height: 36px; border: 3px solid #e0e0e0; border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #error-banner { display: none; padding: 14px 18px; background: var(--red-bg); border: 1px solid #f1707b; border-radius: 6px; color: var(--red); font-size: 14px; margin-bottom: 20px; }
+    #error-banner a { color: var(--red); font-weight: 600; }
+    #tenant-errors { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .error-banner { padding: 10px 14px; background: var(--red-bg); border: 1px solid #f1707b; border-radius: 6px; color: var(--red); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+    .error-banner button { margin-left: auto; background: none; border: none; color: var(--red); cursor: pointer; font-size: 14px; padding: 0 4px; }
+
+    /* ── Tenant grid ── */
+    #view-tenants { display: none; }
+    .global-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 24px; }
+    .stat-card { background: var(--card); border-radius: 6px; padding: 14px 18px; box-shadow: 0 1px 4px rgba(0,0,0,.08); border-left: 4px solid transparent; }
+    .stat-card .num { font-size: 26px; font-weight: 700; line-height: 1; }
+    .stat-card .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
     .stat-card.red    { border-color: var(--red);    } .stat-card.red    .num { color: var(--red);    }
     .stat-card.orange { border-color: var(--orange); } .stat-card.orange .num { color: var(--orange); }
     .stat-card.yellow { border-color: var(--yellow); } .stat-card.yellow .num { color: var(--yellow); }
     .stat-card.green  { border-color: var(--green);  } .stat-card.green  .num { color: var(--green);  }
 
-    /* Filter bar */
+    .tenant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .tc {
+      background: var(--card); border-radius: 8px; border-left: 5px solid var(--green);
+      padding: 20px 22px; box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      cursor: pointer; transition: box-shadow .15s, transform .15s;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .tc:hover { box-shadow: 0 6px 20px rgba(0,0,0,.13); transform: translateY(-2px); }
+    .tc.st-red    { border-color: var(--red); }
+    .tc.st-orange { border-color: var(--orange); }
+    .tc.st-yellow { border-color: var(--yellow); }
+    .tc.st-green  { border-color: var(--green); }
+    .tc.st-muted  { border-color: #c8c6c4; }
+    .tc-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .tc-name { font-size: 16px; font-weight: 700; }
+    .tc-arrow { color: var(--muted); font-size: 18px; flex-shrink: 0; }
+    .tc-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+    .pill.expired  { background: var(--red-bg);    color: var(--red);    }
+    .pill.critical { background: var(--red-bg);    color: var(--red);    }
+    .pill.warning  { background: var(--orange-bg); color: var(--orange); }
+    .pill.notice   { background: var(--yellow-bg); color: var(--yellow); }
+    .pill.ok       { background: var(--green-bg);  color: var(--green);  }
+    .pill.none     { background: #f3f2f1;           color: var(--muted);  }
+    .tc-footer { font-size: 12px; color: var(--muted); }
+    .tc-error { background: var(--red-bg); border-left-color: var(--red) !important; cursor: default; }
+    .tc-error:hover { transform: none; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    .tc-error .tc-name { color: var(--red); }
+    .tc-error .tc-msg  { font-size: 13px; color: var(--red); }
+
+    /* ── Detail view ── */
+    #view-detail { display: none; }
+    .detail-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px; }
+
     .filter-bar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
-    .filter-btn { padding: 5px 14px; border-radius: 16px; border: 1px solid #c8c6c4; background: white; cursor: pointer; font-size: 13px; transition: all 0.15s; }
+    .filter-btn { padding: 5px 14px; border-radius: 16px; border: 1px solid #c8c6c4; background: white; cursor: pointer; font-size: 13px; transition: all .15s; }
     .filter-btn.active { border-color: var(--blue); background: var(--blue); color: white; }
     #search-box { margin-left: auto; padding: 5px 12px; border: 1px solid #c8c6c4; border-radius: 16px; font-size: 13px; width: 220px; }
     #search-box:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
 
-    /* Tenant error banners */
-    #tenant-errors { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-    .error-banner {
-      padding: 10px 14px; background: var(--red-bg);
-      border: 1px solid #f1707b; border-radius: 6px;
-      color: var(--red); font-size: 13px;
-      display: flex; align-items: center; gap: 8px;
-    }
-    .error-banner button {
-      margin-left: auto; background: none; border: none;
-      color: var(--red); cursor: pointer; font-size: 14px; padding: 0 4px;
-    }
-
-    /* Error banner */
-    #error-banner {
-      display: none;
-      padding: 14px 18px;
-      background: var(--red-bg);
-      border: 1px solid #f1707b;
-      border-radius: 6px;
-      color: var(--red);
-      font-size: 14px;
-      margin-bottom: 20px;
-    }
-    #error-banner a { color: var(--red); font-weight: 600; }
-
-    /* Table */
-    .table-wrap { background: var(--card); border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
+    .table-wrap { background: var(--card); border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); overflow: hidden; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    thead th { background: #f8f7f6; padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    thead th { background: #f8f7f6; padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
     tbody tr { border-bottom: 1px solid var(--border); }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: #faf9f8; }
-    tbody td { padding: 13px 16px; vertical-align: middle; }
+    tbody td { padding: 12px 16px; vertical-align: middle; }
     .app-name { font-weight: 600; }
     .app-id { font-size: 11px; color: var(--muted); font-family: 'Cascadia Code', monospace; }
     .secret-hint { font-size: 11px; color: var(--muted); font-family: monospace; }
+    .no-creds { font-size: 13px; color: var(--muted); font-style: italic; }
 
     .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
     .badge.expired  { background: var(--red-bg);    color: var(--red);    }
@@ -139,42 +120,83 @@
     .badge.notice   { background: var(--yellow-bg); color: var(--yellow); }
     .badge.ok       { background: var(--green-bg);  color: var(--green);  }
 
-    /* Remove button */
-    .btn-delete-app {
-      padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;
-      border: 1px solid #c8c6c4; background: white; color: var(--muted);
-      cursor: pointer; white-space: nowrap;
-    }
-    .btn-delete-app:hover { border-color: var(--red); color: var(--red); background: var(--red-bg); }
-    .btn-delete-app:disabled { opacity: .45; cursor: not-allowed; }
-    .btn-delete-app.removing { opacity: .6; cursor: wait; }
-    .no-creds { font-size: 13px; color: var(--muted); font-style: italic; }
-    .btn-remove {
-      padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;
-      border: 1px solid #f1707b; background: white; color: var(--red);
-      cursor: pointer; white-space: nowrap;
-    }
+    .btn-remove { padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; border: 1px solid #f1707b; background: white; color: var(--red); cursor: pointer; white-space: nowrap; }
     .btn-remove:hover { background: var(--red-bg); }
     .btn-remove:disabled { opacity: .45; cursor: not-allowed; }
     .btn-remove.removing { opacity: .6; cursor: wait; }
+    .btn-delete-app { padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; border: 1px solid #c8c6c4; background: white; color: var(--muted); cursor: pointer; white-space: nowrap; }
+    .btn-delete-app:hover { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+    .btn-delete-app:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-delete-app.removing { opacity: .6; cursor: wait; }
     .no-perm-icon { font-size: 14px; cursor: pointer; opacity: .5; background: none; border: none; padding: 0; }
     .no-perm-icon:hover { opacity: .8; }
-    .remove-error {
-      display: flex; align-items: center; gap: 6px;
-      padding: 10px 14px; margin-bottom: 12px;
-      background: var(--red-bg); border: 1px solid #f1707b;
-      border-radius: 6px; color: var(--red); font-size: 13px;
-    }
+    .remove-error { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: var(--red-bg); border: 1px solid #f1707b; border-radius: 6px; color: var(--red); font-size: 13px; }
     .remove-error button { margin-left: auto; background: none; border: none; color: var(--red); cursor: pointer; font-size: 14px; padding: 0 4px; }
 
-    /* Loading / empty */
-    #loading { display: none; text-align: center; padding: 60px 24px; color: var(--muted); }
-    .spinner { width: 36px; height: 36px; border: 3px solid #e0e0e0; border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
     #empty { display: none; text-align: center; padding: 60px 24px; color: var(--muted); }
+
+    .btn-add-secret { padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; border: 1px solid #c8c6c4; background: white; color: var(--blue); cursor: pointer; white-space: nowrap; }
+    .btn-add-secret:hover { border-color: var(--blue); background: #deecf9; }
+    .btn-add-secret:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* Modal */
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-backdrop.open { display: flex; }
+    .modal { background: white; border-radius: 8px; padding: 28px 28px 24px; width: 440px; max-width: calc(100vw - 32px); box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+    .modal h3 { font-size: 16px; margin: 0 0 4px; }
+    .modal .modal-sub { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+    .modal .field { margin-bottom: 14px; }
+    .modal .field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+    .modal .field input { width: 100%; padding: 7px 10px; border: 1px solid #c8c6c4; border-radius: 4px; font-size: 13px; }
+    .modal .field input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
+    .modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+    .modal .btn-cancel { padding: 7px 16px; border: 1px solid #c8c6c4; background: white; border-radius: 4px; font-size: 13px; cursor: pointer; }
+    .modal .btn-cancel:hover { background: var(--surface); }
+    .modal .btn-confirm { padding: 7px 16px; border: none; background: var(--blue); color: white; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .modal .btn-confirm:hover { background: var(--blue-dark); }
+    .modal .btn-confirm:disabled { opacity: .5; cursor: not-allowed; }
+    .modal .secret-reveal { background: #f3f2f1; border: 1px solid var(--border); border-radius: 6px; padding: 14px; margin-top: 16px; }
+    .modal .secret-reveal p { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+    .modal .secret-reveal .secret-val { font-family: 'Cascadia Code', monospace; font-size: 13px; word-break: break-all; user-select: all; color: var(--text); }
+    .modal .secret-reveal .copy-btn { margin-top: 10px; padding: 5px 12px; border: 1px solid #c8c6c4; background: white; border-radius: 4px; font-size: 12px; cursor: pointer; }
+    .modal .secret-reveal .copy-btn:hover { background: var(--surface); }
+    .modal-alert { padding: 10px 12px; background: var(--red-bg); border: 1px solid #f1707b; border-radius: 4px; color: var(--red); font-size: 13px; margin-top: 12px; display: none; }
   </style>
 </head>
 <body>
+
+<!-- Add secret modal -->
+<div class="modal-backdrop" id="add-secret-modal">
+  <div class="modal">
+    <h3 id="modal-app-name">Add new secret</h3>
+    <p class="modal-sub" id="modal-app-sub"></p>
+    <div id="modal-form">
+      <div class="field">
+        <label>Secret display name</label>
+        <input type="text" id="modal-secret-name" placeholder="e.g. Production secret 2026" maxlength="120">
+      </div>
+      <div class="field">
+        <label>Expires (leave blank for 1 year)</label>
+        <input type="date" id="modal-secret-expiry">
+      </div>
+      <div class="modal-alert" id="modal-error"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="modal-cancel">Cancel</button>
+        <button class="btn-confirm" id="modal-submit">Create secret</button>
+      </div>
+    </div>
+    <div id="modal-result" style="display:none">
+      <div class="secret-reveal">
+        <p>⚠ Copy this secret now — it will never be shown again.</p>
+        <div class="secret-val" id="modal-secret-val"></div>
+        <button class="copy-btn" id="modal-copy-btn">Copy to clipboard</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-confirm" id="modal-done">Done — refresh data</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <header>
   <span>🔐</span>
@@ -191,77 +213,95 @@
 
 <main>
   <div class="dash-header">
-    <h1>App Secret Status</h1>
+    <button id="btn-back">← Back</button>
+    <div class="breadcrumb">
+      <h1 id="view-title">Tenants</h1>
+      <span class="sep" id="crumb-sep" style="display:none">›</span>
+      <span class="tenant-crumb" id="crumb-tenant"></span>
+    </div>
     <span class="spacer"></span>
     <span id="last-refresh-lbl" class="last-refresh"></span>
     <button id="btn-refresh">↻ Refresh</button>
   </div>
 
-  <div class="stats-row">
-    <div class="stat-card red">   <div class="num" id="stat-expired">–</div>  <div class="lbl">Expired</div></div>
-    <div class="stat-card red">   <div class="num" id="stat-critical">–</div> <div class="lbl" id="lbl-critical">Critical (&lt;14d)</div></div>
-    <div class="stat-card orange"><div class="num" id="stat-warning">–</div>  <div class="lbl" id="lbl-warning">Warning (14–30d)</div></div>
-    <div class="stat-card yellow"><div class="num" id="stat-notice">–</div>   <div class="lbl" id="lbl-notice">Notice (30–60d)</div></div>
-    <div class="stat-card green"> <div class="num" id="stat-ok">–</div>       <div class="lbl" id="lbl-ok">Healthy (&gt;60d)</div></div>
-    <div class="stat-card" style="border-color:#c8c6c4"><div class="num" id="stat-none" style="color:var(--muted)">–</div><div class="lbl">No credentials</div></div>
-  </div>
-
-  <div class="filter-bar">
-    <button class="filter-btn active" data-filter="all">All</button>
-    <button class="filter-btn" data-filter="expired">Expired</button>
-    <button class="filter-btn" data-filter="critical">Critical</button>
-    <button class="filter-btn" data-filter="warning">Warning</button>
-    <button class="filter-btn" data-filter="notice">Notice</button>
-    <button class="filter-btn" data-filter="ok">Healthy</button>
-    <button class="filter-btn" data-filter="none">No credentials</button>
-    <button class="filter-btn" data-filter="has-secrets">With secrets</button>
-    <button class="filter-btn" data-filter="no-secrets">Without secrets</button>
-    <select id="tenant-filter" style="padding:5px 10px;border:1px solid #c8c6c4;border-radius:16px;font-size:13px;background:white">
-      <option value="">All tenants</option>
-    </select>
-    <input type="search" id="search-box" placeholder="Search apps…">
-  </div>
-
-  <div id="tenant-errors"></div>
-  <div id="error-banner"></div>
-
   <div id="loading"><div class="spinner"></div>Fetching app registrations from Microsoft Graph…</div>
-  <div id="empty">No secrets match the current filter.</div>
+  <div id="error-banner"></div>
+  <div id="tenant-errors"></div>
 
-  <div class="table-wrap" id="table-wrap" style="display:none">
-    <table>
-      <thead>
-        <tr>
-          <th>Tenant</th>
-          <th>Application</th>
-          <th>Secret / Certificate</th>
-          <th>Expires</th>
-          <th>Status</th>
-          <th>Days left</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="table-body"></tbody>
-    </table>
+  <!-- Tenant grid view -->
+  <div id="view-tenants">
+    <div class="global-stats">
+      <div class="stat-card red">   <div class="num" id="stat-expired">–</div>  <div class="lbl">Expired</div></div>
+      <div class="stat-card red">   <div class="num" id="stat-critical">–</div> <div class="lbl" id="lbl-critical">Critical (&lt;14d)</div></div>
+      <div class="stat-card orange"><div class="num" id="stat-warning">–</div>  <div class="lbl" id="lbl-warning">Warning (14–30d)</div></div>
+      <div class="stat-card yellow"><div class="num" id="stat-notice">–</div>   <div class="lbl" id="lbl-notice">Notice (30–60d)</div></div>
+      <div class="stat-card green"> <div class="num" id="stat-ok">–</div>       <div class="lbl" id="lbl-ok">Healthy (&gt;60d)</div></div>
+      <div class="stat-card" style="border-color:#c8c6c4"><div class="num" id="stat-none" style="color:var(--muted)">–</div><div class="lbl">No credentials</div></div>
+    </div>
+    <div class="tenant-grid" id="tenant-grid"></div>
+  </div>
+
+  <!-- Detail view -->
+  <div id="view-detail">
+    <div class="detail-stats">
+      <div class="stat-card red">   <div class="num" id="d-stat-expired">–</div>  <div class="lbl">Expired</div></div>
+      <div class="stat-card red">   <div class="num" id="d-stat-critical">–</div> <div class="lbl" id="d-lbl-critical">Critical</div></div>
+      <div class="stat-card orange"><div class="num" id="d-stat-warning">–</div>  <div class="lbl" id="d-lbl-warning">Warning</div></div>
+      <div class="stat-card yellow"><div class="num" id="d-stat-notice">–</div>   <div class="lbl" id="d-lbl-notice">Notice</div></div>
+      <div class="stat-card green"> <div class="num" id="d-stat-ok">–</div>       <div class="lbl" id="d-lbl-ok">Healthy</div></div>
+      <div class="stat-card" style="border-color:#c8c6c4"><div class="num" id="d-stat-none" style="color:var(--muted)">–</div><div class="lbl">No credentials</div></div>
+    </div>
+
+    <div class="filter-bar">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="expired">Expired</button>
+      <button class="filter-btn" data-filter="critical">Critical</button>
+      <button class="filter-btn" data-filter="warning">Warning</button>
+      <button class="filter-btn" data-filter="notice">Notice</button>
+      <button class="filter-btn" data-filter="ok">Healthy</button>
+      <button class="filter-btn" data-filter="none">No credentials</button>
+      <button class="filter-btn" data-filter="has-secrets">With secrets</button>
+      <button class="filter-btn" data-filter="no-secrets">Without secrets</button>
+      <input type="search" id="search-box" placeholder="Search apps…">
+    </div>
+
+    <div id="empty">No apps match the current filter.</div>
+
+    <div class="table-wrap" id="table-wrap" style="display:none">
+      <table>
+        <thead>
+          <tr>
+            <th>Application</th>
+            <th>Secret / Certificate</th>
+            <th>Expires</th>
+            <th>Status</th>
+            <th>Days left</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
   </div>
 </main>
 
 <script>
-  let allRows = [];
-  let activeFilter = 'all';
+  let allRows      = [];
+  let permissions  = {};
+  let thresholds   = { critical: 14, warning: 30, notice: 60 };
   let userTimezone = 'UTC';
-  let permissions = {};
-  let thresholds = { critical: 14, warning: 30, notice: 60 };
+  let activeFilter = 'all';
+  let selectedTenant = null;   // null = grid view
+  let tenantErrors = [];
 
+  /* ── Helpers ── */
   function esc(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
-
   function formatDate(d) {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: userTimezone });
+    return new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric', timeZone: userTimezone });
   }
-
   function badgeLabel(status, days) {
     if (status === 'expired')  return '● Expired';
     if (status === 'critical') return `● ${days}d – Critical`;
@@ -270,94 +310,108 @@
     if (days === null)         return '● No expiry';
     return `● ${days}d – Healthy`;
   }
-
   function daysColor(status) {
-    return { expired:'var(--red)', critical:'var(--red)', warning:'var(--orange)', notice:'var(--yellow)', ok:'var(--green)' }[status];
+    return { expired:'var(--red)', critical:'var(--red)', warning:'var(--orange)', notice:'var(--yellow)', ok:'var(--green)' }[status] || 'var(--muted)';
+  }
+  function worstStatus(rows) {
+    if (rows.some(r => r.status === 'expired'))  return 'red';
+    if (rows.some(r => r.status === 'critical')) return 'red';
+    if (rows.some(r => r.status === 'warning'))  return 'orange';
+    if (rows.some(r => r.status === 'notice'))   return 'yellow';
+    if (rows.length === 0)                        return 'muted';
+    return 'green';
   }
 
-  function renderTable() {
-    const search       = document.getElementById('search-box').value.trim().toLowerCase();
-    const tenantFilter = document.getElementById('tenant-filter').value;
-    const filtered = allRows.filter(r => {
-      if (activeFilter === 'has-secrets')  { if (r.type !== 'Secret') return false; }
-      else if (activeFilter === 'no-secrets') { if (r.type === 'Secret') return false; }
-      else if (activeFilter !== 'all' && r.status !== activeFilter) return false;
-      if (tenantFilter && r.tenantName !== tenantFilter) return false;
-      if (search && !r.appName.toLowerCase().includes(search) &&
-          !r.secretName.toLowerCase().includes(search) &&
-          !r.tenantName.toLowerCase().includes(search)) return false;
-      return true;
-    });
+  /* ── Navigation ── */
+  function showGrid() {
+    selectedTenant = null;
+    document.getElementById('view-tenants').style.display = 'block';
+    document.getElementById('view-detail').style.display  = 'none';
+    document.getElementById('btn-back').style.display     = 'none';
+    document.getElementById('view-title').textContent     = 'Tenants';
+    document.getElementById('crumb-sep').style.display    = 'none';
+    document.getElementById('crumb-tenant').textContent   = '';
+    // Reset filter
+    activeFilter = 'all';
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all'));
+    document.getElementById('search-box').value = '';
+    renderTenantGrid();
+  }
 
-    const tbody = document.getElementById('table-body');
-    tbody.innerHTML = '';
-    document.getElementById('table-wrap').style.display = filtered.length ? '' : 'none';
-    document.getElementById('empty').style.display = (!filtered.length && allRows.length) ? 'block' : 'none';
+  function showDetail(tenantName) {
+    selectedTenant = tenantName;
+    document.getElementById('view-tenants').style.display = 'none';
+    document.getElementById('view-detail').style.display  = 'block';
+    document.getElementById('btn-back').style.display     = 'inline-block';
+    document.getElementById('view-title').textContent     = 'Tenants';
+    document.getElementById('crumb-sep').style.display    = '';
+    document.getElementById('crumb-tenant').textContent   = tenantName;
+    // Reset filter when entering detail
+    activeFilter = 'all';
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all'));
+    document.getElementById('search-box').value = '';
+    const tenantRows = allRows.filter(r => r.tenantName === tenantName);
+    updateDetailStats(tenantRows);
+    renderTable();
+  }
 
-    for (const r of filtered) {
-      const tr = document.createElement('tr');
-      const canWrite = permissions[r.tenantName];
-      if (r.type === 'none') {
-        tr.innerHTML = `
-          <td style="white-space:nowrap;font-size:13px">${esc(r.tenantName)}</td>
-          <td><div class="app-name">${esc(r.appName)}</div><div class="app-id">${esc(r.appId)}</div></td>
-          <td class="no-creds">No secrets or certificates</td>
-          <td>—</td>
-          <td>—</td>
-          <td>—</td>
-          <td style="text-align:right;white-space:nowrap">
-            ${canWrite
-              ? `<button class="btn-delete-app">Delete app</button>`
-              : `<button class="no-perm-icon" title="Cannot delete – click for details">🔒</button>`}
-          </td>
-        `;
-        const btn = tr.querySelector('.btn-delete-app, .no-perm-icon');
-        if (btn) btn.addEventListener('click', () => canWrite ? deleteApp(r, btn) : showRemoveError(btn, r.tenantName));
-      } else {
-        tr.innerHTML = `
-          <td style="white-space:nowrap;font-size:13px">${esc(r.tenantName)}</td>
-          <td>
-            <div class="app-name">${esc(r.appName)}</div>
-            <div class="app-id">${esc(r.appId)}</div>
-          </td>
-          <td>
-            <div>${esc(r.type)}: ${esc(r.secretName)}</div>
-            ${r.hint ? `<div class="secret-hint">${esc(r.hint)}</div>` : ''}
-          </td>
-          <td>${formatDate(r.expires)}</td>
-          <td><span class="badge ${r.status}">${badgeLabel(r.status, r.daysLeft)}</span></td>
-          <td><strong style="color:${daysColor(r.status)}">${r.daysLeft === null ? '—' : r.daysLeft < 0 ? Math.abs(r.daysLeft) + 'd ago' : r.daysLeft + 'd'}</strong></td>
-          <td style="text-align:right;white-space:nowrap;display:flex;gap:4px;justify-content:flex-end">
-            ${r.type === 'Secret'
-              ? (canWrite
-                  ? `<button class="btn-remove">Remove</button>`
-                  : `<button class="no-perm-icon" title="Cannot remove – click for details">🔒</button>`)
-              : ''}
-            ${canWrite
-              ? `<button class="btn-delete-app">Delete app</button>`
-              : ''}
-          </td>
-        `;
-        if (r.type === 'Secret') {
-          const removeBtn = tr.querySelector('.btn-remove, .no-perm-icon');
-          if (removeBtn) removeBtn.addEventListener('click', () => canWrite ? removeSecret(r, removeBtn) : showRemoveError(removeBtn, r.tenantName));
-        }
-        const deleteBtn = tr.querySelector('.btn-delete-app');
-        if (deleteBtn) deleteBtn.addEventListener('click', () => deleteApp(r, deleteBtn));
-      }
-      tbody.appendChild(tr);
+  /* ── Tenant grid ── */
+  function renderTenantGrid() {
+    updateGlobalStats(allRows);
+    const tenantNames = [...new Set(allRows.map(r => r.tenantName))].sort();
+    const grid = document.getElementById('tenant-grid');
+    grid.innerHTML = '';
+
+    // Error cards first
+    for (const e of tenantErrors) {
+      const card = document.createElement('div');
+      card.className = 'tc tc-error';
+      card.innerHTML = `
+        <div class="tc-header">
+          <div class="tc-name">⚠ ${esc(e.tenant)}</div>
+        </div>
+        <div class="tc-msg">${esc(e.error)}</div>`;
+      grid.appendChild(card);
+    }
+
+    for (const name of tenantNames) {
+      const rows = allRows.filter(r => r.tenantName === name);
+      const st   = worstStatus(rows);
+      const counts = {
+        expired:  rows.filter(r => r.status === 'expired').length,
+        critical: rows.filter(r => r.status === 'critical').length,
+        warning:  rows.filter(r => r.status === 'warning').length,
+        notice:   rows.filter(r => r.status === 'notice').length,
+        ok:       rows.filter(r => r.status === 'ok').length,
+        none:     rows.filter(r => r.status === 'none').length,
+      };
+      const pills = Object.entries(counts)
+        .filter(([, n]) => n > 0)
+        .map(([s, n]) => `<span class="pill ${s}">${n} ${s === 'none' ? 'No creds' : s.charAt(0).toUpperCase() + s.slice(1)}</span>`)
+        .join('');
+      const total = rows.filter(r => r.type !== 'none').length;
+      const apps  = [...new Set(rows.map(r => r.appId))].length;
+
+      const card = document.createElement('div');
+      card.className = `tc st-${st}`;
+      card.innerHTML = `
+        <div class="tc-header">
+          <div class="tc-name">${esc(name)}</div>
+          <div class="tc-arrow">›</div>
+        </div>
+        <div class="tc-pills">${pills || '<span class="pill none">No data</span>'}</div>
+        <div class="tc-footer">${apps} app${apps !== 1 ? 's' : ''} · ${total} credential${total !== 1 ? 's' : ''}</div>`;
+      card.addEventListener('click', () => showDetail(name));
+      grid.appendChild(card);
+    }
+
+    if (tenantNames.length === 0 && tenantErrors.length === 0) {
+      grid.innerHTML = '<p style="color:var(--muted);font-size:14px">No tenants configured. <a href="/settings">Go to Settings →</a></p>';
     }
   }
 
-  function populateTenantFilter(rows) {
-    const names  = [...new Set(rows.map(r => r.tenantName))].sort();
-    const select = document.getElementById('tenant-filter');
-    const prev   = select.value;
-    select.innerHTML = '<option value="">All tenants</option>' +
-      names.map(n => `<option value="${esc(n)}"${n === prev ? ' selected' : ''}>${esc(n)}</option>`).join('');
-  }
-
-  function updateStats(rows) {
+  /* ── Stats ── */
+  function updateGlobalStats(rows) {
     document.getElementById('stat-expired').textContent  = rows.filter(r => r.status === 'expired').length;
     document.getElementById('stat-critical').textContent = rows.filter(r => r.status === 'critical').length;
     document.getElementById('stat-warning').textContent  = rows.filter(r => r.status === 'warning').length;
@@ -366,6 +420,199 @@
     document.getElementById('stat-none').textContent     = rows.filter(r => r.status === 'none').length;
   }
 
+  function updateDetailStats(rows) {
+    document.getElementById('d-stat-expired').textContent  = rows.filter(r => r.status === 'expired').length;
+    document.getElementById('d-stat-critical').textContent = rows.filter(r => r.status === 'critical').length;
+    document.getElementById('d-stat-warning').textContent  = rows.filter(r => r.status === 'warning').length;
+    document.getElementById('d-stat-notice').textContent   = rows.filter(r => r.status === 'notice').length;
+    document.getElementById('d-stat-ok').textContent       = rows.filter(r => r.status === 'ok').length;
+    document.getElementById('d-stat-none').textContent     = rows.filter(r => r.status === 'none').length;
+  }
+
+  /* ── Detail table ── */
+  function renderTable() {
+    const search   = document.getElementById('search-box').value.trim().toLowerCase();
+    const rows     = allRows.filter(r => r.tenantName === selectedTenant);
+    const filtered = rows.filter(r => {
+      if (activeFilter === 'has-secrets')       { if (r.type !== 'Secret') return false; }
+      else if (activeFilter === 'no-secrets')   { if (r.type === 'Secret') return false; }
+      else if (activeFilter !== 'all' && r.status !== activeFilter) return false;
+      if (search && !r.appName.toLowerCase().includes(search) && !r.secretName.toLowerCase().includes(search)) return false;
+      return true;
+    });
+
+    const tbody = document.getElementById('table-body');
+    tbody.innerHTML = '';
+    document.getElementById('table-wrap').style.display = filtered.length ? '' : 'none';
+    document.getElementById('empty').style.display = (!filtered.length && rows.length) ? 'block' : 'none';
+
+    for (const r of filtered) {
+      const tr = document.createElement('tr');
+      const canWrite = permissions[r.tenantName];
+
+      if (r.type === 'none') {
+        tr.innerHTML = `
+          <td><div class="app-name">${esc(r.appName)}</div><div class="app-id">${esc(r.appId)}</div></td>
+          <td class="no-creds">No secrets or certificates</td>
+          <td>—</td><td>—</td><td>—</td>
+          <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
+            ${canWrite ? `<button class="btn-add-secret">+ Add secret</button><button class="btn-delete-app">Delete app</button>` : `<button class="no-perm-icon" title="Cannot modify – click for details">🔒</button>`}
+          </td>`;
+        if (canWrite) {
+          tr.querySelector('.btn-add-secret').addEventListener('click', () => openAddSecret(r));
+          tr.querySelector('.btn-delete-app').addEventListener('click', () => deleteApp(r, tr.querySelector('.btn-delete-app')));
+        } else {
+          tr.querySelector('.no-perm-icon').addEventListener('click', () => showRemoveError(tr.querySelector('.no-perm-icon'), r.tenantName));
+        }
+      } else {
+        tr.innerHTML = `
+          <td><div class="app-name">${esc(r.appName)}</div><div class="app-id">${esc(r.appId)}</div></td>
+          <td>
+            <div>${esc(r.type)}: ${esc(r.secretName)}</div>
+            ${r.hint ? `<div class="secret-hint">${esc(r.hint)}</div>` : ''}
+          </td>
+          <td>${formatDate(r.expires)}</td>
+          <td><span class="badge ${r.status}">${badgeLabel(r.status, r.daysLeft)}</span></td>
+          <td><strong style="color:${daysColor(r.status)}">${r.daysLeft === null ? '—' : r.daysLeft < 0 ? Math.abs(r.daysLeft) + 'd ago' : r.daysLeft + 'd'}</strong></td>
+          <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
+            ${canWrite ? `<button class="btn-add-secret">+ Add secret</button>` : ''}
+            ${r.type === 'Secret' ? (canWrite ? `<button class="btn-remove">Remove</button>` : `<button class="no-perm-icon" title="Cannot remove – click for details">🔒</button>`) : ''}
+            ${canWrite ? `<button class="btn-delete-app">Delete app</button>` : ''}
+          </td>`;
+        const ab = tr.querySelector('.btn-add-secret');
+        if (ab) ab.addEventListener('click', () => openAddSecret(r));
+        if (r.type === 'Secret') {
+          const rb = tr.querySelector('.btn-remove, .no-perm-icon');
+          if (rb) rb.addEventListener('click', () => canWrite ? removeSecret(r, rb) : showRemoveError(rb, r.tenantName));
+        }
+        const db = tr.querySelector('.btn-delete-app');
+        if (db) db.addEventListener('click', () => deleteApp(r, db));
+      }
+      tbody.appendChild(tr);
+    }
+  }
+
+  /* ── Error helpers ── */
+  function showRemoveError(btn, tenantName) {
+    showInlineError(btn.closest('tr'),
+      `Cannot remove: "<strong>${esc(tenantName)}</strong>" is missing <code>Application.ReadWrite.All</code>. ` +
+      `Grant it in <a href="/settings">Settings</a>.`);
+  }
+  function showInlineError(tr, html) {
+    const ex = tr.nextSibling;
+    if (ex && ex.classList && ex.classList.contains('remove-error-row')) ex.remove();
+    const row = document.createElement('tr');
+    row.className = 'remove-error-row';
+    row.innerHTML = `<td colspan="100"><div class="remove-error">⚠ ${html}<button onclick="this.closest('tr').remove()">✕</button></div></td>`;
+    tr.after(row);
+    row.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }
+
+  /* ── Actions ── */
+  async function deleteApp(r, btn) {
+    if (!confirm(`Delete app registration "${r.appName}"?\nThis permanently removes it and all its secrets from Azure AD.`)) return;
+    btn.disabled = true; btn.classList.add('removing'); btn.textContent = 'Deleting…';
+    try {
+      const res  = await fetch(`/api/apps/${encodeURIComponent(r.objectId)}`, { method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ tenantRecordId: r.tenantRecordId }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unknown error');
+      btn.textContent = 'Deleted'; btn.style.borderColor = '#a8a8a8'; btn.style.color = 'var(--muted)';
+    } catch (e) {
+      showInlineError(btn.closest('tr'), `Failed to delete app: ${esc(e.message)}`);
+      btn.disabled = false; btn.classList.remove('removing'); btn.textContent = 'Delete app';
+    }
+  }
+
+  async function removeSecret(r, btn) {
+    if (!confirm(`Remove secret "${r.secretName}" from "${r.appName}"?\nThis cannot be undone.`)) return;
+    btn.disabled = true; btn.classList.add('removing'); btn.textContent = 'Removing…';
+    try {
+      const res  = await fetch('/api/secrets/remove', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ tenantRecordId: r.tenantRecordId, objectId: r.objectId, keyId: r.keyId }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unknown error');
+      btn.textContent = 'Removed'; btn.disabled = true; btn.classList.remove('removing');
+      btn.style.borderColor = '#a8a8a8'; btn.style.color = 'var(--muted)';
+    } catch (e) {
+      showInlineError(btn.closest('tr'), `Failed to remove: ${esc(e.message)}`);
+      btn.disabled = false; btn.classList.remove('removing'); btn.textContent = 'Remove';
+    }
+  }
+
+  /* ── Add secret modal ── */
+  let _addSecretRow = null;
+
+  function openAddSecret(r) {
+    _addSecretRow = r;
+    document.getElementById('modal-app-name').textContent = `Add secret — ${r.appName}`;
+    document.getElementById('modal-app-sub').textContent  = r.appId;
+    document.getElementById('modal-secret-name').value    = '';
+    // Default expiry: 1 year from today
+    const d = new Date(); d.setFullYear(d.getFullYear() + 1);
+    document.getElementById('modal-secret-expiry').value  = d.toISOString().slice(0, 10);
+    document.getElementById('modal-error').style.display  = 'none';
+    document.getElementById('modal-form').style.display   = '';
+    document.getElementById('modal-result').style.display = 'none';
+    document.getElementById('modal-submit').disabled      = false;
+    document.getElementById('modal-submit').textContent   = 'Create secret';
+    document.getElementById('add-secret-modal').classList.add('open');
+    document.getElementById('modal-secret-name').focus();
+  }
+
+  function closeAddSecret() {
+    document.getElementById('add-secret-modal').classList.remove('open');
+    _addSecretRow = null;
+  }
+
+  document.getElementById('modal-cancel').addEventListener('click', closeAddSecret);
+  document.getElementById('add-secret-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('add-secret-modal')) closeAddSecret();
+  });
+
+  document.getElementById('modal-submit').addEventListener('click', async () => {
+    const r    = _addSecretRow;
+    const name = document.getElementById('modal-secret-name').value.trim();
+    const exp  = document.getElementById('modal-secret-expiry').value;
+    if (!name) {
+      const err = document.getElementById('modal-error');
+      err.textContent = 'Please enter a display name for the secret.';
+      err.style.display = 'block';
+      return;
+    }
+    document.getElementById('modal-submit').disabled    = true;
+    document.getElementById('modal-submit').textContent = 'Creating…';
+    document.getElementById('modal-error').style.display = 'none';
+    try {
+      const body = { tenantRecordId: r.tenantRecordId, objectId: r.objectId, displayName: name };
+      if (exp) body.endDateTime = new Date(exp + 'T23:59:59Z').toISOString();
+      const res  = await fetch('/api/secrets/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unknown error');
+      document.getElementById('modal-form').style.display   = 'none';
+      document.getElementById('modal-result').style.display = '';
+      document.getElementById('modal-secret-val').textContent = data.secretText;
+    } catch (e) {
+      const err = document.getElementById('modal-error');
+      err.textContent = e.message;
+      err.style.display = 'block';
+      document.getElementById('modal-submit').disabled    = false;
+      document.getElementById('modal-submit').textContent = 'Create secret';
+    }
+  });
+
+  document.getElementById('modal-copy-btn').addEventListener('click', () => {
+    const val = document.getElementById('modal-secret-val').textContent;
+    navigator.clipboard.writeText(val).then(() => {
+      document.getElementById('modal-copy-btn').textContent = 'Copied!';
+      setTimeout(() => { document.getElementById('modal-copy-btn').textContent = 'Copy to clipboard'; }, 2000);
+    });
+  });
+
+  document.getElementById('modal-done').addEventListener('click', () => {
+    closeAddSecret();
+    loadData();
+  });
+
+  /* ── Data loading ── */
   async function loadData() {
     try {
       const s = await fetch('/api/settings');
@@ -373,124 +620,70 @@
       if (d.timezone) userTimezone = d.timezone;
       if (d.thresholds) {
         thresholds = d.thresholds;
-        document.getElementById('lbl-critical').textContent = `Critical (<${thresholds.critical}d)`;
-        document.getElementById('lbl-warning').textContent  = `Warning (${thresholds.critical}–${thresholds.warning}d)`;
-        document.getElementById('lbl-notice').textContent   = `Notice (${thresholds.warning}–${thresholds.notice}d)`;
-        document.getElementById('lbl-ok').textContent       = `Healthy (>${thresholds.notice}d)`;
+        document.getElementById('lbl-critical').textContent   = `Critical (<${thresholds.critical}d)`;
+        document.getElementById('lbl-warning').textContent    = `Warning (${thresholds.critical}–${thresholds.warning}d)`;
+        document.getElementById('lbl-notice').textContent     = `Notice (${thresholds.warning}–${thresholds.notice}d)`;
+        document.getElementById('lbl-ok').textContent         = `Healthy (>${thresholds.notice}d)`;
+        document.getElementById('d-lbl-critical').textContent = `Critical (<${thresholds.critical}d)`;
+        document.getElementById('d-lbl-warning').textContent  = `Warning (${thresholds.critical}–${thresholds.warning}d)`;
+        document.getElementById('d-lbl-notice').textContent   = `Notice (${thresholds.warning}–${thresholds.notice}d)`;
+        document.getElementById('d-lbl-ok').textContent       = `Healthy (>${thresholds.notice}d)`;
       }
     } catch {}
-    const errBanner = document.getElementById('error-banner');
-    errBanner.style.display = 'none';
-    document.getElementById('loading').style.display = 'block';
-    document.getElementById('table-wrap').style.display = 'none';
-    document.getElementById('empty').style.display = 'none';
-    document.getElementById('btn-refresh').disabled = true;
+
+    document.getElementById('error-banner').style.display = 'none';
+    document.getElementById('loading').style.display      = 'block';
+    document.getElementById('view-tenants').style.display = 'none';
+    document.getElementById('view-detail').style.display  = 'none';
+    document.getElementById('btn-refresh').disabled       = true;
 
     try {
-      const res = await fetch('/api/secrets');
+      const res  = await fetch('/api/secrets');
       const data = await res.json();
       if (!res.ok) {
-        errBanner.innerHTML = data.error + (res.status === 400
-          ? ' <a href="/settings">Go to Settings →</a>' : '');
-        errBanner.style.display = 'block';
+        const eb = document.getElementById('error-banner');
+        eb.innerHTML = data.error + (res.status === 400 ? ' <a href="/settings">Go to Settings →</a>' : '');
+        eb.style.display = 'block';
         return;
       }
-      allRows = data.rows;
-      permissions = data.permissions || {};
-      // Show per-tenant errors as dismissible banners
+      allRows      = data.rows;
+      permissions  = data.permissions || {};
+      tenantErrors = data.errors || [];
+
       const errWrap = document.getElementById('tenant-errors');
       errWrap.innerHTML = '';
-      for (const e of (data.errors || [])) {
+      for (const e of tenantErrors) {
         const div = document.createElement('div');
         div.className = 'error-banner';
         div.innerHTML = `<strong>${esc(e.tenant)}:</strong> ${esc(e.error)} <button onclick="this.parentElement.remove()">✕</button>`;
         errWrap.appendChild(div);
       }
-      updateStats(allRows);
-      populateTenantFilter(allRows);
-      renderTable();
+
       document.getElementById('last-refresh-lbl').textContent = 'Last refresh: ' + new Date().toLocaleTimeString();
+
+      if (selectedTenant) {
+        // Stay in detail view after refresh
+        const tenantRows = allRows.filter(r => r.tenantName === selectedTenant);
+        updateDetailStats(tenantRows);
+        renderTable();
+        document.getElementById('view-detail').style.display = 'block';
+      } else {
+        showGrid();
+      }
     } catch (e) {
-      errBanner.textContent = 'Failed to fetch data: ' + e.message;
-      errBanner.style.display = 'block';
+      const eb = document.getElementById('error-banner');
+      eb.textContent = 'Failed to fetch data: ' + e.message;
+      eb.style.display = 'block';
     } finally {
       document.getElementById('loading').style.display = 'none';
-      document.getElementById('btn-refresh').disabled = false;
+      document.getElementById('btn-refresh').disabled  = false;
     }
   }
 
-  function showRemoveError(btn, tenantName) {
-    showInlineError(
-      btn.closest('tr'),
-      `Cannot remove: the app registration in "<strong>${esc(tenantName)}</strong>" is missing the ` +
-      `<code>Application.ReadWrite.All</code> permission. ` +
-      `Go to <a href="/settings">Settings</a>, open the tenant, and grant that permission in Azure AD.`
-    );
-  }
-
-  function showInlineError(tr, html) {
-    const existing = tr.nextSibling;
-    if (existing && existing.classList && existing.classList.contains('remove-error-row')) existing.remove();
-    const errRow = document.createElement('tr');
-    errRow.className = 'remove-error-row';
-    errRow.innerHTML = `<td colspan="7"><div class="remove-error">⚠ ${html}<button onclick="this.closest('tr').remove()">✕</button></div></td>`;
-    tr.after(errRow);
-    errRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-
-  async function deleteApp(r, btn) {
-    if (!confirm(`Delete the entire app registration "${r.appName}"?\nThis permanently removes the app and all its secrets from Azure AD.`)) return;
-    btn.disabled = true;
-    btn.classList.add('removing');
-    btn.textContent = 'Deleting…';
-    try {
-      const res = await fetch(`/api/apps/${encodeURIComponent(r.objectId)}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantRecordId: r.tenantRecordId })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Unknown error');
-      btn.textContent = 'Deleted';
-      btn.style.borderColor = '#a8a8a8';
-      btn.style.color = 'var(--muted)';
-    } catch (e) {
-      showInlineError(btn.closest('tr'), `Failed to delete app: ${esc(e.message)}`);
-      btn.disabled = false;
-      btn.classList.remove('removing');
-      btn.textContent = 'Delete app';
-    }
-  }
-
-  async function removeSecret(r, btn) {
-    if (!confirm(`Remove secret "${r.secretName}" from "${r.appName}"?\nThis cannot be undone.`)) return;
-    btn.disabled = true;
-    btn.classList.add('removing');
-    btn.textContent = 'Removing…';
-    try {
-      const res = await fetch('/api/secrets/remove', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantRecordId: r.tenantRecordId, objectId: r.objectId, keyId: r.keyId })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Unknown error');
-      btn.textContent = 'Removed';
-      btn.disabled = true;
-      btn.classList.remove('removing');
-      btn.style.borderColor = '#a8a8a8';
-      btn.style.color = 'var(--muted)';
-    } catch (e) {
-      showInlineError(btn.closest('tr'), `Failed to remove secret: ${esc(e.message)}`);
-      btn.disabled = false;
-      btn.classList.remove('removing');
-      btn.textContent = 'Remove';
-    }
-  }
-
+  /* ── Event listeners ── */
+  document.getElementById('btn-back').addEventListener('click', showGrid);
   document.getElementById('btn-refresh').addEventListener('click', loadData);
   document.getElementById('search-box').addEventListener('input', renderTable);
-  document.getElementById('tenant-filter').addEventListener('change', renderTable);
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
