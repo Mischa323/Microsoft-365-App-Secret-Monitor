@@ -167,9 +167,13 @@
     .modal .btn-confirm:disabled { opacity: .5; cursor: not-allowed; }
     .modal .secret-reveal { background: #f3f2f1; border: 1px solid var(--border); border-radius: 6px; padding: 14px; margin-top: 16px; }
     .modal .secret-reveal p { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
-    .modal .secret-reveal .secret-val { font-family: 'Cascadia Code', monospace; font-size: 13px; word-break: break-all; user-select: all; color: var(--text); }
-    .modal .secret-reveal .copy-btn { margin-top: 10px; padding: 5px 12px; border: 1px solid #c8c6c4; background: white; border-radius: 4px; font-size: 12px; cursor: pointer; }
+    .modal .secret-reveal .secret-val { font-family: 'Cascadia Code', monospace; font-size: 13px; word-break: break-all; user-select: all; color: var(--text); letter-spacing: 0.04em; }
+    .modal .secret-reveal .secret-val.masked { filter: blur(5px); user-select: none; cursor: pointer; }
+    .modal .secret-reveal .secret-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .modal .secret-reveal .copy-btn { padding: 5px 12px; border: 1px solid #c8c6c4; background: white; border-radius: 4px; font-size: 12px; cursor: pointer; }
     .modal .secret-reveal .copy-btn:hover { background: var(--surface); }
+    .modal .secret-reveal .show-btn { padding: 5px 12px; border: 1px solid #c8c6c4; background: white; border-radius: 4px; font-size: 12px; cursor: pointer; }
+    .modal .secret-reveal .show-btn:hover { background: var(--surface); }
     .modal-alert { padding: 10px 12px; background: var(--red-bg); border: 1px solid #f1707b; border-radius: 4px; color: var(--red); font-size: 13px; margin-top: 12px; display: none; }
   </style>
 </head>
@@ -204,8 +208,11 @@
     <div id="modal-result" style="display:none">
       <div class="secret-reveal">
         <p>⚠ Copy this secret now — it will never be shown again.</p>
-        <div class="secret-val" id="modal-secret-val"></div>
-        <button class="copy-btn" id="modal-copy-btn">Copy to clipboard</button>
+        <div class="secret-val masked" id="modal-secret-val" title="Click to reveal"></div>
+        <div class="secret-actions">
+          <button class="copy-btn" id="modal-copy-btn">📋 Copy to clipboard</button>
+          <button class="show-btn" id="modal-show-btn">👁 Show key</button>
+        </div>
       </div>
       <div class="modal-actions">
         <button class="btn-confirm" id="modal-done">Done</button>
@@ -654,6 +661,14 @@
     }
   }
 
+  function copyInfoField(btn, val) {
+    navigator.clipboard.writeText(val).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = '✔';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    });
+  }
+
   /* ── Add secret modal ── */
   let _addSecretRow = null;
 
@@ -661,13 +676,17 @@
     _addSecretRow = r;
     document.getElementById('modal-app-name').textContent = `Add secret — ${r.appName}`;
     const fields = [
-      ['Tenant',        r.tenantName],
-      ['Tenant ID',     r.tenantId   || '—'],
-      ['Application ID', r.appId     || '—'],
-      ['Object ID',     r.objectId   || '—'],
+      ['Tenant',                     r.tenantName,  false],
+      ['Tenant ID',                  r.tenantId   || '—', true],
+      ['Application ID (Client ID)', r.appId      || '—', true],
+      ['Object ID',                  r.objectId   || '—', true],
     ];
-    document.getElementById('modal-app-info').innerHTML = fields.map(([k, v]) =>
-      `<span style="color:#605e5c;font-weight:600;white-space:nowrap">${k}</span><span style="font-family:monospace;color:#201f1e;word-break:break-all">${esc(v)}</span>`
+    document.getElementById('modal-app-info').innerHTML = fields.map(([k, v, copyable]) =>
+      `<span style="color:#605e5c;font-weight:600;white-space:nowrap">${k}</span>` +
+      `<span style="display:flex;align-items:center;gap:6px">` +
+        `<span style="font-family:monospace;color:#201f1e;word-break:break-all">${esc(v)}</span>` +
+        (copyable && v !== '—' ? `<button onclick="copyInfoField(this,'${esc(v)}')" style="flex-shrink:0;padding:2px 7px;border:1px solid #c8c6c4;border-radius:3px;background:white;font-size:11px;cursor:pointer;color:#605e5c">Copy</button>` : '') +
+      `</span>`
     ).join('');
     document.getElementById('modal-secret-name').value   = '';
     document.getElementById('modal-secret-expiry').value = '';
@@ -754,10 +773,19 @@
   document.getElementById('modal-copy-btn').addEventListener('click', () => {
     const val = document.getElementById('modal-secret-val').textContent;
     navigator.clipboard.writeText(val).then(() => {
-      document.getElementById('modal-copy-btn').textContent = 'Copied!';
-      setTimeout(() => { document.getElementById('modal-copy-btn').textContent = 'Copy to clipboard'; }, 2000);
+      document.getElementById('modal-copy-btn').textContent = '✔ Copied!';
+      setTimeout(() => { document.getElementById('modal-copy-btn').textContent = '📋 Copy to clipboard'; }, 2000);
     });
   });
+
+  const showBtn = document.getElementById('modal-show-btn');
+  const secretValEl = document.getElementById('modal-secret-val');
+  showBtn.addEventListener('click', () => {
+    const masked = secretValEl.classList.toggle('masked');
+    showBtn.textContent = masked ? '👁 Show key' : '🙈 Hide key';
+    secretValEl.title = masked ? 'Click to reveal' : '';
+  });
+  secretValEl.addEventListener('click', () => showBtn.click());
 
   document.getElementById('modal-done').addEventListener('click', closeAddSecret);
 
