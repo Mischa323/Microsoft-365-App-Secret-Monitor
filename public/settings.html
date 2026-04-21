@@ -221,33 +221,60 @@
     <p>Add an Azure AD tenant to start monitoring app secrets.</p>
     <button class="btn-primary" onclick="openAdd()">+ Add your first tenant</button>
   </div>
-  <!-- Alert thresholds -->
+  <!-- General settings -->
   <div style="margin-top:32px">
-    <div class="page-header" style="margin-bottom:16px"><h1>Alert thresholds</h1></div>
-    <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:24px 28px">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5">
-        Configure how many days before expiry each status level is triggered.
-        Must be ascending: Critical &lt; Warning &lt; Notice.
-      </p>
-      <div id="threshold-alert" class="alert" style="margin-bottom:16px"></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:20px">
-        <div>
-          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--red)">Critical (days)</label>
-          <input id="thr-critical" type="number" min="1" value="14" style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">Expires within N days</div>
+    <div class="page-header" style="margin-bottom:16px"><h1>General settings</h1></div>
+    <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:24px 28px;display:flex;flex-direction:column;gap:28px">
+
+      <!-- Alert thresholds -->
+      <div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:6px">Alert thresholds</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5">
+          Days before expiry each status level is triggered. Must be ascending: Critical &lt; Warning &lt; Notice.
+        </p>
+        <div id="threshold-alert" class="alert" style="margin-bottom:16px"></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:16px">
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--red)">Critical (days)</label>
+            <input id="thr-critical" type="number" min="1" value="14" style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">Expires within N days</div>
+          </div>
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--orange)">Warning (days)</label>
+            <input id="thr-warning" type="number" min="1" value="30" style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">Expires within N days</div>
+          </div>
+          <div>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--yellow)">Notice (days)</label>
+            <input id="thr-notice" type="number" min="1" value="60" style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">Expires within N days</div>
+          </div>
         </div>
-        <div>
-          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--orange)">Warning (days)</label>
-          <input id="thr-warning" type="number" min="1" value="30" style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">Expires within N days</div>
-        </div>
-        <div>
-          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--yellow)">Notice (days)</label>
-          <input id="thr-notice" type="number" min="1" value="60" style="width:100%;padding:8px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px">
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">Expires within N days</div>
+        <button class="btn-primary" id="btn-save-thresholds">Save thresholds</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:0">
+
+      <!-- Log retention -->
+      <div>
+        <div style="font-size:14px;font-weight:700;margin-bottom:6px">Log retention</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5">
+          How long audit and version log entries are kept. Older entries are pruned automatically on startup and when this setting is saved.
+        </p>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <select id="retention-select" style="padding:7px 10px;border:1px solid #c8c6c4;border-radius:6px;font-size:13px">
+            <option value="7">7 days</option>
+            <option value="30">30 days</option>
+            <option value="90" selected>90 days (default)</option>
+            <option value="180">180 days</option>
+            <option value="365">1 year</option>
+            <option value="0">Forever (no pruning)</option>
+          </select>
+          <button id="btn-save-retention" class="btn-primary" style="padding:7px 18px">Save</button>
+          <span id="retention-msg" style="font-size:13px;color:var(--muted)"></span>
         </div>
       </div>
-      <button class="btn-primary" id="btn-save-thresholds">Save thresholds</button>
+
     </div>
   </div>
 
@@ -472,8 +499,15 @@
   <div style="margin-top:32px;display:none" id="section-audit">
     <div class="page-header" style="margin-bottom:16px">
       <h1>Audit log</h1>
-      <span class="spacer"></span>
-      <input type="search" id="audit-search" placeholder="Filter…" style="padding:5px 12px;border:1px solid #c8c6c4;border-radius:16px;font-size:13px;width:200px">
+      <span class="spacer" style="flex:1"></span>
+      <input type="search" id="audit-search" placeholder="Filter by event, user, detail…" style="padding:5px 12px;border:1px solid #c8c6c4;border-radius:16px;font-size:13px;width:220px;margin-right:8px">
+      <select id="audit-limit" style="padding:5px 10px;border:1px solid #c8c6c4;border-radius:6px;font-size:13px">
+        <option value="10" selected>Show 10</option>
+        <option value="25">Show 25</option>
+        <option value="50">Show 50</option>
+        <option value="100">Show 100</option>
+        <option value="500">Show all</option>
+      </select>
     </div>
     <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden">
       <table class="data-table" id="audit-table">
@@ -496,6 +530,32 @@
         <span id="audit-page-lbl"></span>
         <button class="btn-ghost" id="audit-next">Next →</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Version log (admin only) -->
+  <div style="margin-top:32px;display:none" id="section-version-log">
+    <div class="page-header" style="margin-bottom:16px">
+      <h1>Version log</h1>
+      <span class="spacer" style="flex:1"></span>
+      <input type="search" id="vl-filter" placeholder="Filter by version…" style="padding:5px 12px;border:1px solid #c8c6c4;border-radius:16px;font-size:13px;width:200px;margin-right:8px">
+      <select id="vl-limit" style="padding:5px 10px;border:1px solid #c8c6c4;border-radius:6px;font-size:13px">
+        <option value="10" selected>Show 10</option>
+        <option value="25">Show 25</option>
+        <option value="50">Show 50</option>
+        <option value="100">Show 100</option>
+        <option value="500">Show all</option>
+      </select>
+    </div>
+    <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <table class="data-table">
+        <thead>
+          <tr><th>Time</th><th>Version (git SHA)</th></tr>
+        </thead>
+        <tbody id="vl-tbody"></tbody>
+      </table>
+      <div id="vl-empty" style="padding:24px 20px;font-size:13px;color:var(--muted);display:none">No version log entries yet.</div>
+      <div id="vl-footer" style="padding:10px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)"></div>
     </div>
   </div>
 
@@ -733,9 +793,18 @@
   </div>
 </main>
 
+<div style="text-align:center;padding:24px;font-size:12px;color:#a19f9d">
+  M365 App Secret Monitor &nbsp;·&nbsp; version <span id="app-version">…</span>
+</div>
+
 <div id="toast"></div>
 
 <script>
+  fetch('/api/version').then(r => r.json()).then(({ version }) => {
+    document.getElementById('app-version').textContent = version === 'dev' ? 'dev' : version.slice(0, 7);
+    document.getElementById('app-version').title = version;
+  }).catch(() => {});
+
   let tenants = [];
   let users   = [];
   let groups  = [];
@@ -755,7 +824,8 @@
         document.getElementById('section-users').style.display = '';
         document.getElementById('section-groups').style.display = '';
         document.getElementById('section-audit').style.display = '';
-        await Promise.all([loadUsers(), loadGroups(), loadAuditLog(), loadSso()]);
+        document.getElementById('section-version-log').style.display = '';
+        await Promise.all([loadUsers(), loadGroups(), loadAuditLog(), loadSso(), loadVersionLog(), loadRetention()]);
       }
     } catch {}
   }
@@ -1614,12 +1684,12 @@
 
   let auditPage = 1;
   let auditTotal = 0;
-  const AUDIT_LIMIT = 50;
   let auditFilter = '';
 
   async function loadAuditLog(page = 1) {
     auditPage = page;
-    const params = new URLSearchParams({ page, limit: AUDIT_LIMIT });
+    const limit = parseInt(document.getElementById('audit-limit').value) || 10;
+    const params = new URLSearchParams({ page, limit });
     if (auditFilter) params.set('filter', auditFilter);
     const res  = await fetch(`/api/audit?${params}`);
     const data = await res.json();
@@ -1640,7 +1710,8 @@
       empty.style.display  = 'none';
       table.style.display  = '';
     }
-    const totalPages = Math.ceil(auditTotal / AUDIT_LIMIT) || 1;
+    const auditLimit = parseInt(document.getElementById('audit-limit').value) || 10;
+    const totalPages = Math.ceil(auditTotal / auditLimit) || 1;
     count.textContent = `${auditTotal} event${auditTotal !== 1 ? 's' : ''}`;
     document.getElementById('audit-page-lbl').textContent = `Page ${auditPage} of ${totalPages}`;
     document.getElementById('audit-prev').disabled = auditPage <= 1;
@@ -1663,6 +1734,8 @@
   }
 
   function escA(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  document.getElementById('audit-limit').addEventListener('change', () => loadAuditLog(1));
 
   let auditSearchTimer;
   document.getElementById('audit-search').addEventListener('input', e => {
@@ -1826,6 +1899,73 @@
       alert.className = 'alert error'; alert.textContent = e.message;
     } finally {
       btn.disabled = false; btn.textContent = 'Save SSO settings';
+    }
+  });
+</script>
+<script>
+  async function loadVersionLog() {
+    const limit  = document.getElementById('vl-limit').value;
+    const filter = document.getElementById('vl-filter').value.trim();
+    const params = new URLSearchParams({ limit });
+    if (filter) params.set('version', filter);
+    const res  = await fetch('/api/version-log?' + params);
+    const data = await res.json();
+    const tbody = document.getElementById('vl-tbody');
+    const empty = document.getElementById('vl-empty');
+    const footer = document.getElementById('vl-footer');
+    if (!data.entries.length) {
+      tbody.innerHTML = '';
+      empty.style.display = '';
+      footer.textContent = '';
+      return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = data.entries.map(e => {
+      const d = new Date(e.timestamp);
+      const dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+      const short = e.version === 'dev' ? 'dev' : e.version.slice(0, 7);
+      return `<tr>
+        <td style="white-space:nowrap">${dateStr}</td>
+        <td><span style="font-family:monospace" title="${e.version}">${short}</span></td>
+      </tr>`;
+    }).join('');
+    footer.textContent = `Showing ${data.entries.length} of ${data.total} startup${data.total !== 1 ? 's' : ''}`;
+  }
+
+  document.getElementById('vl-limit').addEventListener('change', loadVersionLog);
+  let vlFilterTimer;
+  document.getElementById('vl-filter').addEventListener('input', () => {
+    clearTimeout(vlFilterTimer);
+    vlFilterTimer = setTimeout(loadVersionLog, 300);
+  });
+
+  async function loadRetention() {
+    const res  = await fetch('/api/log-retention');
+    const data = await res.json();
+    const sel  = document.getElementById('retention-select');
+    const opt  = [...sel.options].find(o => o.value === String(data.days));
+    if (opt) sel.value = String(data.days);
+  }
+
+  document.getElementById('btn-save-retention').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-save-retention');
+    const msg = document.getElementById('retention-msg');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const res  = await fetch('/api/log-retention', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: parseInt(document.getElementById('retention-select').value) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      msg.style.color = '#107c10';
+      msg.textContent = data.days === 0 ? 'Saved — logs kept forever.' : `Saved — logs older than ${data.days} days pruned.`;
+    } catch (e) {
+      msg.style.color = '#d13438'; msg.textContent = e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save';
+      setTimeout(() => { msg.textContent = ''; }, 4000);
     }
   });
 </script>

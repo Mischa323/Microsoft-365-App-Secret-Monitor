@@ -7,6 +7,9 @@ RUN npm ci --only=production
 
 COPY . .
 
+ARG GIT_SHA=unknown
+ENV APP_VERSION=$GIT_SHA
+
 # Runtime data lives in a mounted volume at /data
 ENV DATA_DIR=/data
 ENV PORT=3000

@@ -1785,7 +1785,75 @@ function classify(days) {
   return 'ok';
 }
 
+const APP_VERSION = process.env.APP_VERSION || 'dev';
+const VERSION_LOG_FILE = path.join(DATA_DIR, 'version.log');
+
+function getLogRetentionDays() {
+  const v = parseInt(process.env.LOG_RETENTION_DAYS || '90', 10);
+  return isNaN(v) || v < 0 ? 90 : v;
+}
+
+function pruneLogFile(filePath) {
+  const days = getLogRetentionDays();
+  if (days === 0) return;
+  if (!fs.existsSync(filePath)) return;
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const lines = fs.readFileSync(filePath, 'utf8').split('\n').filter(Boolean);
+  const kept  = lines.filter(l => {
+    try { return new Date(JSON.parse(l).timestamp).getTime() >= cutoff; } catch { return true; }
+  });
+  if (kept.length !== lines.length) fs.writeFileSync(filePath, kept.join('\n') + (kept.length ? '\n' : ''));
+}
+
+function appendVersionLog() {
+  const entry = JSON.stringify({ timestamp: new Date().toISOString(), version: APP_VERSION }) + '\n';
+  try { fs.appendFileSync(VERSION_LOG_FILE, entry); } catch {}
+}
+
+function readVersionLog() {
+  try {
+    return fs.readFileSync(VERSION_LOG_FILE, 'utf8')
+      .split('\n').filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean)
+      .reverse();
+  } catch { return []; }
+}
+
+app.get('/api/version', requireLogin, (req, res) => {
+  res.json({ version: APP_VERSION });
+});
+
+app.get('/api/log-retention', requireAdmin, (req, res) => {
+  res.json({ days: getLogRetentionDays() });
+});
+
+app.post('/api/log-retention', requireAdmin, (req, res) => {
+  const days = parseInt(req.body.days, 10);
+  if (isNaN(days) || days < 0) return res.status(400).json({ error: 'Invalid value. Use 0 for unlimited or a positive number of days.' });
+  let env = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
+  env = setEnvVar(env, 'LOG_RETENTION_DAYS', String(days));
+  fs.writeFileSync(ENV_PATH, env);
+  process.env.LOG_RETENTION_DAYS = String(days);
+  pruneLogFile(AUDIT_PATH);
+  pruneLogFile(VERSION_LOG_FILE);
+  audit(req, 'settings.log_retention', `days=${days}`);
+  res.json({ ok: true, days });
+});
+
+app.get('/api/version-log', requireLogin, (req, res) => {
+  const limit   = Math.min(parseInt(req.query.limit  || '10', 10), 500);
+  const filter  = (req.query.version || '').trim().toLowerCase();
+  let entries = readVersionLog();
+  if (filter) entries = entries.filter(e => e.version.toLowerCase().includes(filter));
+  res.json({ entries: entries.slice(0, limit), total: entries.length });
+});
+
 app.listen(PORT, () => {
+  pruneLogFile(AUDIT_PATH);
+  pruneLogFile(VERSION_LOG_FILE);
+  appendVersionLog();
   console.log(`M365 App Secret Monitor → http://localhost:${PORT}`);
+  console.log(`  Version: ${APP_VERSION}`);
   if (!isSetupComplete()) console.log('  First run — open the URL to complete setup.');
 });
