@@ -157,7 +157,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // CSRF: reject cross-origin state-changing requests by checking Origin/Referer
 app.use((req, res, next) => {
   if (!['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) return next();
-  if (['/login', '/login/2fa', '/logout'].includes(req.path)) return next();
+  // Exempt unauthenticated endpoints — setup, login, logout
+  const exempt = ['/login', '/login/2fa', '/logout', '/api/setup', '/api/setup/totp/verify'];
+  if (exempt.some(p => req.path === p || req.path.startsWith('/api/setup'))) return next();
   const origin = req.headers.origin || req.headers.referer;
   if (origin) {
     try {
@@ -401,6 +403,7 @@ app.post('/api/setup', async (req, res) => {
     process.env.SETUP_COMPLETE    = 'true';
     if (totpEnabled) process.env.TOTP_SECRET = totpSecret;
 
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     let env = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
     env = setEnvVar(env, 'APP_USERNAME',      username);
     env = setEnvVar(env, 'APP_EMAIL',         email.toLowerCase());
