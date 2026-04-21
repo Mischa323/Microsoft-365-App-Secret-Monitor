@@ -8,6 +8,8 @@ const bcrypt     = require('bcryptjs');
 const speakeasy  = require('speakeasy');
 const QRCode     = require('qrcode');
 const nodemailer = require('nodemailer');
+const helmet     = require('helmet');
+const rateLimit  = require('express-rate-limit');
 const {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -114,15 +116,75 @@ function sanitizeUser(u) {
 })();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+
+// Session secret — refuse to start silently with a known-weak default
+let SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET) {
+  SESSION_SECRET = crypto.randomBytes(32).toString('hex');
+  console.warn('[security] SESSION_SECRET not set — using a random secret. Sessions will be invalidated on restart. Set SESSION_SECRET in .env for production.');
+}
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:     ["'self'"],
+      scriptSrc:      ["'self'", 'https://cdn.jsdelivr.net'],
+      styleSrc:       ["'self'", "'unsafe-inline'"],
+      imgSrc:         ["'self'", 'data:'],
+      connectSrc:     ["'self'"],
+      fontSrc:        ["'self'"],
+      objectSrc:      ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: '5mb' }));
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'fallback-secret',
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 8 * 60 * 60 * 1000 }, // default 8 h; overridden to 30 d when "remember me" is checked
+  cookie: {
+    maxAge:   8 * 60 * 60 * 1000, // default 8 h; overridden to 30 d on "remember me"
+    httpOnly: true,
+    sameSite: 'lax',
+  },
 }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// CSRF: reject cross-origin state-changing requests by checking Origin/Referer
+app.use((req, res, next) => {
+  if (!['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) return next();
+  if (['/login', '/login/2fa', '/logout'].includes(req.path)) return next();
+  const origin = req.headers.origin || req.headers.referer;
+  if (origin) {
+    try {
+      if (new URL(origin).host !== req.get('host')) return res.status(403).json({ error: 'CSRF check failed.' });
+    } catch { return res.status(403).json({ error: 'CSRF check failed.' }); }
+  }
+  next();
+});
+
+// Rate limiters
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 10,
+  standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Too many login attempts, please try again in 15 minutes.' },
+  skipSuccessfulRequests: true,
+});
+const twoFaLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, max: 10,
+  standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Too many 2FA attempts, please try again later.' },
+  skipSuccessfulRequests: true,
+});
+const passkeyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 20,
+  standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Too many passkey attempts, please try again later.' },
+});
 
 // ── Guards ────────────────────────────────────────────────────────────────────
 const isSetupComplete = () => process.env.SETUP_COMPLETE === 'true';
@@ -220,11 +282,47 @@ function saveSsoConfig(cfg, clientSecret) {
   fs.writeFileSync(ENV_PATH, env);
 }
 
-function decodeSsoIdToken(token) {
+// JWKS cache to avoid fetching on every login
+const _jwksCache = new Map();
+
+async function getJwksKey(tenantId, kid) {
+  const cacheKey = `${tenantId}:${kid}`;
+  if (_jwksCache.has(cacheKey)) return _jwksCache.get(cacheKey);
+  const jwksUri = `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`;
+  const res = await fetch(jwksUri, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error('Failed to fetch JWKS');
+  const { keys } = await res.json();
+  const key = keys.find(k => k.kid === kid);
+  if (!key) throw new Error('Signing key not found in JWKS');
+  const pem = jwkToPem(key);
+  _jwksCache.set(cacheKey, pem);
+  setTimeout(() => _jwksCache.delete(cacheKey), 3600 * 1000); // expire after 1 h
+  return pem;
+}
+
+function jwkToPem(jwk) {
+  const n = Buffer.from(jwk.n, 'base64url');
+  const e = Buffer.from(jwk.e, 'base64url');
+  const pubKey = crypto.createPublicKey({ key: { kty: 'RSA', n: jwk.n, e: jwk.e }, format: 'jwk' });
+  return pubKey.export({ type: 'spki', format: 'pem' });
+}
+
+async function verifySsoIdToken(token, cfg) {
   const parts = token.split('.');
-  if (parts.length !== 3) throw new Error('Invalid ID token');
+  if (parts.length !== 3) throw new Error('Invalid ID token format');
+  const header  = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
   const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+
   if (payload.exp && Date.now() / 1000 > payload.exp) throw new Error('ID token expired');
+  if (payload.nbf && Date.now() / 1000 < payload.nbf) throw new Error('ID token not yet valid');
+  if (payload.aud !== cfg.clientId) throw new Error('Audience mismatch');
+
+  if (header.alg !== 'RS256') throw new Error(`Unexpected algorithm: ${header.alg}`);
+  const pem = await getJwksKey(cfg.tenantId === 'common' ? payload.tid : cfg.tenantId, header.kid);
+  const signingInput = `${parts[0]}.${parts[1]}`;
+  const signature = Buffer.from(parts[2], 'base64url');
+  const valid = crypto.createVerify('SHA256').update(signingInput).verify(pem, signature);
+  if (!valid) throw new Error('ID token signature invalid');
   return payload;
 }
 
@@ -356,7 +454,7 @@ app.get('/login', requireSetup, (req, res) => {
 
 const REMEMBER_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-app.post('/login', requireSetup, async (req, res) => {
+app.post('/login', loginLimiter, requireSetup, async (req, res) => {
   const { username, password, remember } = req.body;
   const id = (username || '').trim().toLowerCase();
 
@@ -366,13 +464,13 @@ app.post('/login', requireSetup, async (req, res) => {
   );
 
   if (!user || user.enabled === false) {
-    audit(req, 'login.fail', `username: ${id}`);
+    audit(req, 'login.fail', 'invalid credentials');
     return res.redirect('/login?error=1');
   }
 
   const ok = user.passwordHash && await bcrypt.compare(password, user.passwordHash);
   if (!ok) {
-    audit(req, 'login.fail', `username: ${id}`);
+    audit(req, 'login.fail', 'invalid credentials');
     return res.redirect('/login?error=1');
   }
 
@@ -399,7 +497,7 @@ app.get('/login/2fa', requireSetup, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login-2fa.html'));
 });
 
-app.post('/login/2fa', requireSetup, (req, res) => {
+app.post('/login/2fa', twoFaLimiter, requireSetup, (req, res) => {
   const pendingUserId = req.session.pendingUserId;
   if (!pendingUserId && !req.session.pendingAuth) return res.redirect('/login');
 
@@ -496,7 +594,7 @@ app.get('/auth/microsoft/callback', requireSetup, async (req, res) => {
   if (!cfg.enabled) return res.redirect('/login?error=sso_disabled');
 
   const { code, state, error } = req.query;
-  if (error) return res.redirect(`/login?error=sso_${encodeURIComponent(error)}`);
+  if (error) return res.redirect('/login?error=sso_failed');
   if (!code || state !== req.session.ssoState) return res.redirect('/login?error=sso_state');
 
   delete req.session.ssoState;
@@ -506,7 +604,7 @@ app.get('/auth/microsoft/callback', requireSetup, async (req, res) => {
   try {
     const tokenRes = await fetch(
       `https://login.microsoftonline.com/${cfg.tenantId}/oauth2/v2.0/token`,
-      { method: 'POST', body: new URLSearchParams({
+      { method: 'POST', signal: AbortSignal.timeout(15000), body: new URLSearchParams({
           grant_type:    'authorization_code',
           client_id:     cfg.clientId,
           client_secret: cfg.clientSecret,
@@ -518,7 +616,7 @@ app.get('/auth/microsoft/callback', requireSetup, async (req, res) => {
     const tokenData = await tokenRes.json();
     if (!tokenRes.ok) throw new Error(tokenData.error_description || tokenData.error || 'Token exchange failed');
 
-    const claims = decodeSsoIdToken(tokenData.id_token);
+    const claims = await verifySsoIdToken(tokenData.id_token, cfg);
     if (claims.nonce !== expectedNonce) throw new Error('Nonce mismatch');
     if (claims.aud !== cfg.clientId) throw new Error('Audience mismatch');
 
@@ -754,11 +852,32 @@ app.delete('/api/groups/:id', requireAdmin, (req, res) => {
 // ── API: logo ─────────────────────────────────────────────────────────────────
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 
+const MAGIC_BYTES = {
+  png:  [0x89, 0x50, 0x4e, 0x47],
+  jpeg: [0xff, 0xd8, 0xff],
+  gif:  [0x47, 0x49, 0x46],
+  webp: null, // checked via RIFF header below
+};
+
+function validateImageMagicBytes(buf, ext) {
+  if (ext === 'webp') {
+    return buf.slice(0, 4).toString('ascii') === 'RIFF' &&
+           buf.slice(8, 12).toString('ascii') === 'WEBP';
+  }
+  const magic = MAGIC_BYTES[ext];
+  if (!magic) return false;
+  return magic.every((b, i) => buf[i] === b);
+}
+
 app.get('/api/logo', (req, res) => {
   const file = process.env.LOGO_FILE;
   if (!file) return res.status(404).end();
-  const filePath = path.join(UPLOADS_DIR, file);
+  const filePath = path.resolve(UPLOADS_DIR, path.basename(file));
+  if (!filePath.startsWith(path.resolve(UPLOADS_DIR) + path.sep) && filePath !== path.resolve(UPLOADS_DIR, path.basename(file))) {
+    return res.status(404).end();
+  }
   if (!fs.existsSync(filePath)) return res.status(404).end();
+  res.set('Content-Disposition', `inline; filename="${path.basename(filePath)}"`);
   res.sendFile(filePath);
 });
 
@@ -766,22 +885,27 @@ app.post('/api/logo', requireLogin, (req, res) => {
   const { data } = req.body;
   if (!data) return res.status(400).json({ error: 'No image data provided.' });
 
-  const match = data.match(/^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,(.+)$/s);
-  if (!match) return res.status(400).json({ error: 'Unsupported format. Use PNG, JPG, GIF, WebP, or SVG.' });
+  const match = data.match(/^data:image\/(png|jpeg|gif|webp);base64,(.+)$/s);
+  if (!match) return res.status(400).json({ error: 'Unsupported format. Use PNG, JPG, GIF, or WebP.' });
 
-  const rawExt = match[1];
+  const ext    = match[1] === 'jpeg' ? 'jpeg' : match[1];
   const base64 = match[2];
-  const ext      = rawExt === 'svg+xml' ? 'svg' : rawExt;
-  const filename = `logo.${ext}`;
+  const buf    = Buffer.from(base64, 'base64');
 
+  if (buf.length > 5 * 1024 * 1024)
+    return res.status(413).json({ error: 'File too large. Maximum size is 5 MB.' });
+
+  if (!validateImageMagicBytes(buf, ext === 'jpeg' ? 'jpeg' : ext))
+    return res.status(400).json({ error: 'File content does not match declared image type.' });
+
+  const filename = `logo.${ext}`;
   if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-  // Remove any previous logo files
   fs.readdirSync(UPLOADS_DIR)
     .filter(f => f.startsWith('logo.'))
     .forEach(f => fs.unlinkSync(path.join(UPLOADS_DIR, f)));
 
-  fs.writeFileSync(path.join(UPLOADS_DIR, filename), Buffer.from(base64, 'base64'));
+  fs.writeFileSync(path.join(UPLOADS_DIR, filename), buf);
 
   process.env.LOGO_FILE = filename;
   try {
@@ -1353,7 +1477,7 @@ app.post('/api/tenants/:id/test', requireLogin, async (req, res) => {
     const token  = await getGraphToken(t.tenantId, t.clientId, t.clientSecret);
     const roles  = getTokenRoles(token);
     const resp   = await fetch('https://graph.microsoft.com/v1.0/applications?$top=1', {
-      headers: { Authorization: `Bearer ${token}` },
+      signal: timeoutSignal(), headers: { Authorization: `Bearer ${token}` },
     });
     if (!resp.ok) throw new Error(`Graph returned ${resp.status}`);
     res.json({
@@ -1409,6 +1533,10 @@ app.post('/api/secrets/remove', requireLogin, async (req, res) => {
   if (!tenantRecordId || !objectId || !keyId)
     return res.status(400).json({ error: 'Missing required fields.' });
 
+  const accessibleIds = getUserTenantIds(req.user);
+  if (accessibleIds !== null && !accessibleIds.includes(tenantRecordId))
+    return res.status(403).json({ error: 'Access denied to this tenant.' });
+
   const tenant = loadTenants().find(t => t.id === tenantRecordId);
   if (!tenant) return res.status(404).json({ error: 'Tenant not found.' });
 
@@ -1423,7 +1551,7 @@ app.post('/api/secrets/remove', requireLogin, async (req, res) => {
     const resp = await fetch(
       `https://graph.microsoft.com/v1.0/applications/${objectId}/removePassword`,
       {
-        method: 'POST',
+        method: 'POST', signal: timeoutSignal(),
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyId }),
       },
@@ -1446,6 +1574,10 @@ app.post('/api/secrets/add', requireLogin, async (req, res) => {
   if (!tenantRecordId || !objectId || !displayName)
     return res.status(400).json({ error: 'Missing required fields.' });
 
+  const accessibleIds = getUserTenantIds(req.user);
+  if (accessibleIds !== null && !accessibleIds.includes(tenantRecordId))
+    return res.status(403).json({ error: 'Access denied to this tenant.' });
+
   const tenant = loadTenants().find(t => t.id === tenantRecordId);
   if (!tenant) return res.status(404).json({ error: 'Tenant not found.' });
 
@@ -1463,7 +1595,7 @@ app.post('/api/secrets/add', requireLogin, async (req, res) => {
     const resp = await fetch(
       `https://graph.microsoft.com/v1.0/applications/${objectId}/addPassword`,
       {
-        method: 'POST',
+        method: 'POST', signal: timeoutSignal(),
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ passwordCredential: credential }),
       },
@@ -1499,7 +1631,7 @@ app.post('/api/apps', requireLogin, async (req, res) => {
     if (description)    body.description    = description.trim();
 
     const resp = await fetch('https://graph.microsoft.com/v1.0/applications', {
-      method: 'POST',
+      method: 'POST', signal: timeoutSignal(),
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
@@ -1526,7 +1658,7 @@ app.delete('/api/apps/:objectId', requireLogin, async (req, res) => {
     if (!roles.includes('Application.ReadWrite.All'))
       return res.status(403).json({ error: 'Permission denied. Grant Application.ReadWrite.All to delete app registrations.' });
     const resp = await fetch(`https://graph.microsoft.com/v1.0/applications/${objectId}`, {
-      method: 'DELETE',
+      method: 'DELETE', signal: timeoutSignal(),
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!resp.ok && resp.status !== 204) {
@@ -1634,7 +1766,7 @@ app.delete('/api/passkeys/:id', requireLogin, (req, res) => {
 });
 
 // Auth options (no login needed — called during the login flow)
-app.get('/api/passkeys/auth/options', async (req, res) => {
+app.get('/api/passkeys/auth/options', passkeyLimiter, async (req, res) => {
   const options = await generateAuthenticationOptions({
     rpID: getRpId(req),
     userVerification: 'preferred',
@@ -1645,9 +1777,10 @@ app.get('/api/passkeys/auth/options', async (req, res) => {
 });
 
 // Verify auth / log in via passkey
-app.post('/api/passkeys/auth', async (req, res) => {
+app.post('/api/passkeys/auth', passkeyLimiter, async (req, res) => {
   const { response, remember } = req.body;
   const expectedChallenge = req.session.passkeyChallenge;
+  delete req.session.passkeyChallenge; // consume immediately to prevent replay
   if (!expectedChallenge) return res.status(400).json({ error: 'No active challenge.' });
 
   const credId = response.id;
@@ -1682,7 +1815,6 @@ app.post('/api/passkeys/auth', async (req, res) => {
     users[ui].passkeys[pki].counter = verification.authenticationInfo.newCounter;
     saveUsers(users);
 
-    delete req.session.passkeyChallenge;
     if (remember) req.session.cookie.maxAge = REMEMBER_MAX_AGE;
     req.session.userId = targetUser.id;
     req.session.authenticated = undefined;
@@ -1702,10 +1834,12 @@ function setEnvVar(content, key, value) {
   return re.test(content) ? content.replace(re, line) : content + `\n${line}`;
 }
 
+function timeoutSignal(ms = 30000) { return AbortSignal.timeout(ms); }
+
 async function getGraphToken(tenantId, clientId, clientSecret) {
   const resp = await fetch(
     `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
-    { method: 'POST', body: new URLSearchParams({
+    { method: 'POST', signal: timeoutSignal(), body: new URLSearchParams({
         grant_type: 'client_credentials', client_id: clientId,
         client_secret: clientSecret, scope: 'https://graph.microsoft.com/.default',
     })},
@@ -1726,7 +1860,7 @@ async function fetchAllApps(token) {
   const apps = [];
   let url = 'https://graph.microsoft.com/v1.0/applications?$select=id,displayName,appId,passwordCredentials,keyCredentials&$top=999';
   while (url) {
-    const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const resp = await fetch(url, { signal: timeoutSignal(), headers: { Authorization: `Bearer ${token}` } });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error?.message || `Graph ${resp.status}`);
     apps.push(...data.value);

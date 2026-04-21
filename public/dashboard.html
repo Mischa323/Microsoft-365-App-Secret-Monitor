@@ -615,15 +615,29 @@
   /* ── Error helpers ── */
   function showRemoveError(btn, tenantName) {
     showInlineError(btn.closest('tr'),
-      `Cannot remove: "<strong>${esc(tenantName)}</strong>" is missing <code>Application.ReadWrite.All</code>. ` +
-      `Grant it in <a href="/settings">Settings</a>.`);
+      `Cannot remove: "${esc(tenantName)}" is missing Application.ReadWrite.All. Grant it in <a href="/settings">Settings</a>.`,
+      true);
   }
-  function showInlineError(tr, html) {
+  function showInlineError(tr, msg, allowHtml = false) {
     const ex = tr.nextSibling;
     if (ex && ex.classList && ex.classList.contains('remove-error-row')) ex.remove();
     const row = document.createElement('tr');
     row.className = 'remove-error-row';
-    row.innerHTML = `<td colspan="100"><div class="remove-error">⚠ ${html}<button onclick="this.closest('tr').remove()">✕</button></div></td>`;
+    const cell = document.createElement('td');
+    cell.colSpan = 100;
+    const box = document.createElement('div');
+    box.className = 'remove-error';
+    if (allowHtml) {
+      box.innerHTML = `⚠ ${msg}`;
+    } else {
+      box.textContent = `⚠ ${msg}`;
+    }
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.onclick = () => row.remove();
+    box.appendChild(closeBtn);
+    cell.appendChild(box);
+    row.appendChild(cell);
     tr.after(row);
     row.scrollIntoView({ behavior:'smooth', block:'nearest' });
   }
