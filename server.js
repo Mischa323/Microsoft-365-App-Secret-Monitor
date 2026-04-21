@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(process.env.DATA_DIR || __dirname, '.env') });
 const express    = require('express');
 const session    = require('express-session');
 const fs         = require('fs');
