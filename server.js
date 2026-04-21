@@ -187,6 +187,47 @@ function getUserTenantIds(user) {
   return [...ids];
 }
 
+// ── SSO helpers ───────────────────────────────────────────────────────────────
+function getSsoConfig() {
+  return {
+    enabled:       process.env.SSO_ENABLED       === 'true',
+    clientId:      process.env.SSO_CLIENT_ID      || '',
+    clientSecret:  process.env.SSO_CLIENT_SECRET  || '',
+    tenantId:      process.env.SSO_TENANT_ID      || 'common',
+    autoProvision: process.env.SSO_AUTO_PROVISION !== 'false',
+    defaultRole:   process.env.SSO_DEFAULT_ROLE   || 'viewer',
+  };
+}
+
+function saveSsoConfig(cfg, clientSecret) {
+  const vars = {
+    SSO_ENABLED:        cfg.enabled        ? 'true' : 'false',
+    SSO_CLIENT_ID:      cfg.clientId       || '',
+    SSO_TENANT_ID:      cfg.tenantId       || 'common',
+    SSO_AUTO_PROVISION: cfg.autoProvision  ? 'true' : 'false',
+    SSO_DEFAULT_ROLE:   cfg.defaultRole    || 'viewer',
+  };
+  if (clientSecret !== undefined && clientSecret !== '••••••••')
+    vars.SSO_CLIENT_SECRET = clientSecret;
+  let env = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
+  for (const [k, v] of Object.entries(vars)) {
+    env = setEnvVar(env, k, v);
+    process.env[k] = v;
+  }
+  if (clientSecret !== undefined && clientSecret !== '••••••••') {
+    process.env.SSO_CLIENT_SECRET = clientSecret;
+  }
+  fs.writeFileSync(ENV_PATH, env);
+}
+
+function decodeSsoIdToken(token) {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('Invalid ID token');
+  const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+  if (payload.exp && Date.now() / 1000 > payload.exp) throw new Error('ID token expired');
+  return payload;
+}
+
 // ── Root ──────────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   if (!isSetupComplete()) return res.redirect('/setup');
@@ -406,6 +447,118 @@ app.post('/login/2fa', requireSetup, (req, res) => {
 app.post('/logout', (req, res) => {
   audit(req, 'logout', '');
   req.session.destroy(() => res.redirect('/login'));
+});
+
+// ── SSO: Microsoft OAuth2 ─────────────────────────────────────────────────────
+app.get('/api/sso/status', (req, res) => {
+  const { enabled, tenantId } = getSsoConfig();
+  res.json({ enabled, tenantId });
+});
+
+app.get('/api/sso', requireAdmin, (req, res) => {
+  const cfg = getSsoConfig();
+  res.json({ ...cfg, clientSecret: cfg.clientSecret ? '••••••••' : '' });
+});
+
+app.post('/api/sso', requireAdmin, (req, res) => {
+  const { enabled, clientId, clientSecret, tenantId, autoProvision, defaultRole } = req.body;
+  if (!['admin', 'viewer'].includes(defaultRole))
+    return res.status(400).json({ error: 'Default role must be admin or viewer.' });
+  saveSsoConfig({ enabled, clientId: (clientId || '').trim(), tenantId: (tenantId || 'common').trim(), autoProvision, defaultRole }, clientSecret);
+  audit(req, 'settings.sso', `enabled=${enabled}`);
+  res.json({ ok: true });
+});
+
+app.get('/auth/microsoft', requireSetup, (req, res) => {
+  const cfg = getSsoConfig();
+  if (!cfg.enabled || !cfg.clientId)
+    return res.redirect('/login?error=sso_disabled');
+
+  const state = crypto.randomBytes(16).toString('hex');
+  const nonce = crypto.randomBytes(16).toString('hex');
+  req.session.ssoState = state;
+  req.session.ssoNonce = nonce;
+
+  const params = new URLSearchParams({
+    client_id:     cfg.clientId,
+    response_type: 'code',
+    redirect_uri:  `${req.protocol}://${req.get('host')}/auth/microsoft/callback`,
+    scope:         'openid profile email',
+    response_mode: 'query',
+    state,
+    nonce,
+  });
+  res.redirect(`https://login.microsoftonline.com/${cfg.tenantId}/oauth2/v2.0/authorize?${params}`);
+});
+
+app.get('/auth/microsoft/callback', requireSetup, async (req, res) => {
+  const cfg = getSsoConfig();
+  if (!cfg.enabled) return res.redirect('/login?error=sso_disabled');
+
+  const { code, state, error } = req.query;
+  if (error) return res.redirect(`/login?error=sso_${encodeURIComponent(error)}`);
+  if (!code || state !== req.session.ssoState) return res.redirect('/login?error=sso_state');
+
+  delete req.session.ssoState;
+  const expectedNonce = req.session.ssoNonce;
+  delete req.session.ssoNonce;
+
+  try {
+    const tokenRes = await fetch(
+      `https://login.microsoftonline.com/${cfg.tenantId}/oauth2/v2.0/token`,
+      { method: 'POST', body: new URLSearchParams({
+          grant_type:    'authorization_code',
+          client_id:     cfg.clientId,
+          client_secret: cfg.clientSecret,
+          code,
+          redirect_uri:  `${req.protocol}://${req.get('host')}/auth/microsoft/callback`,
+          scope:         'openid profile email',
+      })},
+    );
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok) throw new Error(tokenData.error_description || tokenData.error || 'Token exchange failed');
+
+    const claims = decodeSsoIdToken(tokenData.id_token);
+    if (claims.nonce !== expectedNonce) throw new Error('Nonce mismatch');
+    if (claims.aud !== cfg.clientId) throw new Error('Audience mismatch');
+
+    const email = (claims.email || claims.preferred_username || '').toLowerCase();
+    if (!email) throw new Error('No email in token');
+
+    let users = loadUsers();
+    let user = users.find(u => u.email.toLowerCase() === email);
+
+    if (!user) {
+      if (!cfg.autoProvision) return res.redirect('/login?error=sso_no_user');
+      user = {
+        id:                  crypto.randomUUID(),
+        username:            email.split('@')[0],
+        email,
+        passwordHash:        '',
+        role:                cfg.defaultRole,
+        groupIds:            [],
+        totpEnabled:         false,
+        totpSecret:          '',
+        receiveNotifications: false,
+        enabled:             true,
+        ssoOnly:             true,
+      };
+      users.push(user);
+      saveUsers(users);
+      audit(req, 'sso.provision', `email=${email} role=${cfg.defaultRole}`);
+    }
+
+    if (user.enabled === false) return res.redirect('/login?error=sso_disabled_user');
+
+    req.session.userId = user.id;
+    req.session.authenticated = undefined;
+    req.user = user;
+    audit(req, 'login.success', 'microsoft-sso');
+    res.redirect('/dashboard');
+  } catch (e) {
+    console.error('SSO callback error:', e.message);
+    res.redirect('/login?error=sso_failed');
+  }
 });
 
 // ── Pages ─────────────────────────────────────────────────────────────────────
@@ -858,7 +1011,7 @@ async function fetchReportRows() {
   const results = await Promise.allSettled(
     tenants.map(async t => {
       const token = await getGraphToken(t.tenantId, t.clientId, t.clientSecret);
-      return buildRows(await fetchAllApps(token), t.name, t.id);
+      return buildRows(await fetchAllApps(token), t.name, t.id, t.tenantId);
     })
   );
   return results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
@@ -1228,24 +1381,26 @@ app.get('/api/secrets', requireLogin, async (req, res) => {
       const roles    = getTokenRoles(token);
       const canWrite = roles.includes('Application.ReadWrite.All');
       const apps     = await fetchAllApps(token);
-      return { rows: buildRows(apps, t.name, t.id), canWrite, tenantName: t.name };
+      return { rows: buildRows(apps, t.name, t.id, t.tenantId), canWrite, tenantName: t.name, tenantRecordId: t.id };
     })
   );
 
-  const rows        = [];
-  const errors      = [];
-  const permissions = {};
+  const rows            = [];
+  const errors          = [];
+  const permissions     = {};
+  const tenantRecordIds = {};
   results.forEach((r, i) => {
     if (r.status === 'fulfilled') {
       rows.push(...r.value.rows);
-      permissions[r.value.tenantName] = r.value.canWrite;
+      permissions[r.value.tenantName]     = r.value.canWrite;
+      tenantRecordIds[r.value.tenantName] = r.value.tenantRecordId;
     } else {
       errors.push({ tenant: tenants[i].name, error: r.reason.message });
     }
   });
 
   rows.sort((a, b) => a.daysLeft - b.daysLeft);
-  res.json({ rows, errors, permissions });
+  res.json({ rows, errors, permissions, tenantRecordIds });
 });
 
 // ── API: remove a secret from an app registration ────────────────────────────
@@ -1320,6 +1475,41 @@ app.post('/api/secrets/add', requireLogin, async (req, res) => {
     res.json({ ok: true, keyId: data.keyId, secretText: data.secretText, endDateTime: data.endDateTime });
   } catch (e) {
     console.error('Add secret error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── API: create a new app registration ───────────────────────────────────────
+app.post('/api/apps', requireLogin, async (req, res) => {
+  const { tenantRecordId, displayName, description, signInAudience } = req.body;
+  if (!tenantRecordId || !displayName || !displayName.trim())
+    return res.status(400).json({ error: 'Missing required fields.' });
+
+  const tenant = loadTenants().find(t => t.id === tenantRecordId);
+  if (!tenant) return res.status(404).json({ error: 'Tenant not found.' });
+
+  try {
+    const token = await getGraphToken(tenant.tenantId, tenant.clientId, tenant.clientSecret);
+    const roles = getTokenRoles(token);
+    if (!roles.includes('Application.ReadWrite.All'))
+      return res.status(403).json({ error: 'Permission denied. Grant Application.ReadWrite.All to create app registrations.' });
+
+    const body = { displayName: displayName.trim() };
+    if (signInAudience) body.signInAudience = signInAudience;
+    if (description)    body.description    = description.trim();
+
+    const resp = await fetch('https://graph.microsoft.com/v1.0/applications', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error?.message || `Graph ${resp.status}`);
+
+    audit(req, 'app.create', `name=${displayName.trim()} objectId=${data.id} tenant=${tenant.name}`);
+    res.json({ ok: true, objectId: data.id, appId: data.appId, displayName: data.displayName });
+  } catch (e) {
+    console.error('Create app error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1545,29 +1735,29 @@ async function fetchAllApps(token) {
   return apps;
 }
 
-function buildRows(apps, tenantName, tenantRecordId) {
+function buildRows(apps, tenantName, tenantRecordId, tenantId) {
   const now = new Date(); now.setHours(0, 0, 0, 0);
   const rows = [];
   for (const app of apps) {
     const secrets = app.passwordCredentials || [];
     const certs   = app.keyCredentials || [];
     if (secrets.length === 0 && certs.length === 0) {
-      rows.push({ tenantName, tenantRecordId, objectId: app.id, appName: app.displayName || '(no name)', appId: app.appId, type: 'none', keyId: null, secretName: '', hint: '', expires: null, daysLeft: null, status: 'none' });
+      rows.push({ tenantName, tenantRecordId, tenantId, objectId: app.id, appName: app.displayName || '(no name)', appId: app.appId, type: 'none', keyId: null, secretName: '', hint: '', expires: null, daysLeft: null, status: 'none' });
     } else {
-      for (const cred of secrets) rows.push(makeRow(app, cred, 'Secret', now, tenantName, tenantRecordId));
-      for (const cert of certs)   rows.push(makeRow(app, cert, 'Certificate', now, tenantName, tenantRecordId));
+      for (const cred of secrets) rows.push(makeRow(app, cred, 'Secret', now, tenantName, tenantRecordId, tenantId));
+      for (const cert of certs)   rows.push(makeRow(app, cert, 'Certificate', now, tenantName, tenantRecordId, tenantId));
     }
   }
   return rows;
 }
 
-function makeRow(app, cred, type, now, tenantName, tenantRecordId) {
+function makeRow(app, cred, type, now, tenantName, tenantRecordId, tenantId) {
   const hasExpiry = !!cred.endDateTime;
   const exp = hasExpiry ? new Date(cred.endDateTime) : null;
   if (exp) exp.setHours(0, 0, 0, 0);
   const daysLeft = hasExpiry ? Math.ceil((exp - now) / 86400000) : null;
   return {
-    tenantName, tenantRecordId,
+    tenantName, tenantRecordId, tenantId,
     objectId: app.id,
     appName: app.displayName || '(no name)', appId: app.appId, type,
     keyId: cred.keyId,

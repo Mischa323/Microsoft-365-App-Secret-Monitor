@@ -340,6 +340,60 @@
     </div>
   </div>
 
+  <!-- SSO (admin only) -->
+  <div style="margin-top:32px;display:none" id="section-sso">
+    <div class="page-header" style="margin-bottom:16px">
+      <h1>Single Sign-On</h1>
+    </div>
+    <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:20px">
+      <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:20px">
+        Allow users to sign in with their Microsoft 365 account via OAuth2. Create an app registration in <a href="https://portal.azure.com" target="_blank" rel="noopener" style="color:var(--blue)">Azure Portal</a> with a redirect URI of <code id="sso-redirect-uri" style="background:#f3f2f1;padding:2px 6px;border-radius:3px;font-size:12px"></code>.
+      </div>
+
+      <div id="sso-alert" class="alert" style="margin-bottom:16px"></div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+        <label class="toggle" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;font-weight:600">
+          <input type="checkbox" id="sso-enabled" style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer">
+          Enable Microsoft SSO
+        </label>
+      </div>
+
+      <div class="field-row" style="margin-bottom:14px">
+        <div class="field">
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px">Tenant ID</label>
+          <input id="sso-tenant-id" type="text" placeholder="your-tenant-id or common" style="width:100%;padding:8px 10px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px;font-family:monospace">
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">Your Azure AD tenant ID or <code>common</code> for multi-tenant.</div>
+        </div>
+        <div class="field">
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px">Client (Application) ID</label>
+          <input id="sso-client-id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="width:100%;padding:8px 10px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px;font-family:monospace">
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:5px">Client Secret</label>
+        <input id="sso-client-secret" type="password" placeholder="leave blank to keep current secret" style="width:100%;max-width:400px;padding:8px 10px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px">
+      </div>
+
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input type="checkbox" id="sso-auto-provision" style="width:14px;height:14px;accent-color:var(--blue);cursor:pointer">
+          Auto-create account on first sign-in
+        </label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <label style="font-size:13px;white-space:nowrap">Default role:</label>
+          <select id="sso-default-role" style="padding:5px 8px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px">
+            <option value="viewer">Viewer</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btn-save-sso">Save SSO settings</button>
+    </div>
+  </div>
+
   <!-- Users (admin only) -->
   <div style="margin-top:32px;display:none" id="section-users">
     <div class="page-header" style="margin-bottom:16px">
@@ -697,10 +751,11 @@
       if (!res.ok) return;
       currentUser = await res.json();
       if (currentUser.role === 'admin') {
+        document.getElementById('section-sso').style.display = '';
         document.getElementById('section-users').style.display = '';
         document.getElementById('section-groups').style.display = '';
         document.getElementById('section-audit').style.display = '';
-        await Promise.all([loadUsers(), loadGroups(), loadAuditLog()]);
+        await Promise.all([loadUsers(), loadGroups(), loadAuditLog(), loadSso()]);
       }
     } catch {}
   }
@@ -1727,6 +1782,52 @@
   });
 
   loadPasskeys();
+</script>
+<script>
+  // ── SSO ────────────────────────────────────────────────────────────────────
+  document.getElementById('sso-redirect-uri').textContent = `${location.origin}/auth/microsoft/callback`;
+
+  async function loadSso() {
+    try {
+      const res = await fetch('/api/sso');
+      if (!res.ok) return;
+      const cfg = await res.json();
+      document.getElementById('sso-enabled').checked        = cfg.enabled;
+      document.getElementById('sso-tenant-id').value        = cfg.tenantId || '';
+      document.getElementById('sso-client-id').value        = cfg.clientId || '';
+      document.getElementById('sso-client-secret').value    = cfg.clientSecret || '';
+      document.getElementById('sso-auto-provision').checked = cfg.autoProvision !== false;
+      document.getElementById('sso-default-role').value     = cfg.defaultRole || 'viewer';
+    } catch {}
+  }
+
+  document.getElementById('btn-save-sso').addEventListener('click', async () => {
+    const btn   = document.getElementById('btn-save-sso');
+    const alert = document.getElementById('sso-alert');
+    alert.className = 'alert'; alert.textContent = '';
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const res = await fetch('/api/sso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled:       document.getElementById('sso-enabled').checked,
+          clientId:      document.getElementById('sso-client-id').value.trim(),
+          clientSecret:  document.getElementById('sso-client-secret').value,
+          tenantId:      document.getElementById('sso-tenant-id').value.trim() || 'common',
+          autoProvision: document.getElementById('sso-auto-provision').checked,
+          defaultRole:   document.getElementById('sso-default-role').value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      alert.className = 'alert success'; alert.textContent = 'SSO settings saved.';
+    } catch (e) {
+      alert.className = 'alert error'; alert.textContent = e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save SSO settings';
+    }
+  });
 </script>
 </body>
 </html>

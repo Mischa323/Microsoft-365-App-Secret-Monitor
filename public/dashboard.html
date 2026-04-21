@@ -139,6 +139,16 @@
     .btn-add-secret:hover { border-color: var(--blue); background: #deecf9; }
     .btn-add-secret:disabled { opacity: .45; cursor: not-allowed; }
 
+    /* Grouped table rows */
+    tbody tr.tr-app { background: #faf9f8; border-top: 2px solid var(--border); cursor: pointer; user-select: none; }
+    tbody tr.tr-app:first-child { border-top: none; }
+    tbody tr.tr-app:hover { background: #f3f2f1; }
+    tbody tr.tr-secret td:first-child { padding-left: 32px; border-left: 3px solid var(--border); }
+    tbody tr.tr-secret { border-bottom: 1px solid #f0eeec; }
+    tbody tr.tr-secret:hover { background: #faf9f8; }
+    .chevron { display: inline-block; font-size: 10px; color: var(--muted); margin-right: 8px; transition: transform .15s; flex-shrink: 0; }
+    .chevron.open { transform: rotate(90deg); }
+
     /* Modal */
     .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; align-items: center; justify-content: center; }
     .modal-backdrop.open { display: flex; }
@@ -167,17 +177,23 @@
 
 <!-- Add secret modal -->
 <div class="modal-backdrop" id="add-secret-modal">
-  <div class="modal">
-    <h3 id="modal-app-name">Add new secret</h3>
-    <p class="modal-sub" id="modal-app-sub"></p>
+  <div class="modal" style="width:520px">
+    <h3 id="modal-app-name" style="margin-bottom:12px">Add new secret</h3>
+    <div id="modal-app-info" style="background:#f3f2f1;border-radius:6px;padding:10px 14px;margin-bottom:16px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px"></div>
     <div id="modal-form">
       <div class="field">
         <label>Secret display name</label>
         <input type="text" id="modal-secret-name" placeholder="e.g. Production secret 2026" maxlength="120">
       </div>
       <div class="field">
-        <label>Expires (leave blank for 1 year)</label>
-        <input type="date" id="modal-secret-expiry">
+        <label>Expires</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <button type="button" class="expiry-preset" data-months="6"  style="padding:5px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px;cursor:pointer;background:white">6 months</button>
+          <button type="button" class="expiry-preset" data-months="12" style="padding:5px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px;cursor:pointer;background:white">1 year</button>
+          <button type="button" class="expiry-preset" data-months="24" style="padding:5px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px;cursor:pointer;background:white">2 years</button>
+          <button type="button" class="expiry-preset" data-months="0"  style="padding:5px 12px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px;cursor:pointer;background:white">Custom…</button>
+        </div>
+        <input type="date" id="modal-secret-expiry" style="display:none;width:100%;padding:7px 10px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px">
       </div>
       <div class="modal-alert" id="modal-error"></div>
       <div class="modal-actions">
@@ -192,8 +208,37 @@
         <button class="copy-btn" id="modal-copy-btn">Copy to clipboard</button>
       </div>
       <div class="modal-actions">
-        <button class="btn-confirm" id="modal-done">Done — refresh data</button>
+        <button class="btn-confirm" id="modal-done">Done</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create app modal -->
+<div class="modal-backdrop" id="create-app-modal">
+  <div class="modal">
+    <h3>Create app registration</h3>
+    <p class="modal-sub" id="create-app-tenant-name"></p>
+    <div class="field">
+      <label>Display name</label>
+      <input type="text" id="create-app-name" placeholder="e.g. My API Service" maxlength="120">
+    </div>
+    <div class="field">
+      <label>Description (optional)</label>
+      <input type="text" id="create-app-desc" placeholder="What is this app for?" maxlength="256">
+    </div>
+    <div class="field">
+      <label>Supported account types</label>
+      <select id="create-app-audience" style="width:100%;padding:7px 10px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px">
+        <option value="AzureADMyOrg">Single tenant – this organization only</option>
+        <option value="AzureADMultipleOrgs">Multi-tenant – any Azure AD directory</option>
+        <option value="AzureADandPersonalMicrosoftAccount">Multi-tenant + personal Microsoft accounts</option>
+      </select>
+    </div>
+    <div class="modal-alert" id="create-app-error"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="create-app-cancel">Cancel</button>
+      <button class="btn-confirm" id="create-app-submit">Create</button>
     </div>
   </div>
 </div>
@@ -263,6 +308,7 @@
       <button class="filter-btn" data-filter="has-secrets">With secrets</button>
       <button class="filter-btn" data-filter="no-secrets">Without secrets</button>
       <input type="search" id="search-box" placeholder="Search apps…">
+      <button id="btn-create-app" style="display:none;margin-left:auto;padding:5px 12px;background:var(--blue);color:white;border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer">+ Create app</button>
     </div>
 
     <div id="empty">No apps match the current filter.</div>
@@ -271,12 +317,11 @@
       <table>
         <thead>
           <tr>
-            <th>Application</th>
             <th>Secret / Certificate</th>
             <th>Expires</th>
             <th>Status</th>
             <th>Days left</th>
-            <th></th>
+            <th colspan="2"></th>
           </tr>
         </thead>
         <tbody id="table-body"></tbody>
@@ -286,13 +331,14 @@
 </main>
 
 <script>
-  let allRows      = [];
-  let permissions  = {};
-  let thresholds   = { critical: 14, warning: 30, notice: 60 };
-  let userTimezone = 'UTC';
-  let activeFilter = 'all';
-  let selectedTenant = null;   // null = grid view
-  let tenantErrors = [];
+  let allRows         = [];
+  let permissions     = {};
+  let tenantRecordIds = {};
+  let thresholds      = { critical: 14, warning: 30, notice: 60 };
+  let userTimezone    = 'UTC';
+  let activeFilter    = 'all';
+  let selectedTenant  = null;   // null = grid view
+  let tenantErrors    = [];
 
   /* ── Helpers ── */
   function esc(s) {
@@ -328,6 +374,7 @@
     document.getElementById('view-tenants').style.display = 'block';
     document.getElementById('view-detail').style.display  = 'none';
     document.getElementById('btn-back').style.display     = 'none';
+    document.getElementById('btn-create-app').style.display = 'none';
     document.getElementById('view-title').textContent     = 'Tenants';
     document.getElementById('crumb-sep').style.display    = 'none';
     document.getElementById('crumb-tenant').textContent   = '';
@@ -346,6 +393,7 @@
     document.getElementById('view-title').textContent     = 'Tenants';
     document.getElementById('crumb-sep').style.display    = '';
     document.getElementById('crumb-tenant').textContent   = tenantName;
+    document.getElementById('btn-create-app').style.display = permissions[tenantName] ? '' : 'none';
     // Reset filter when entering detail
     activeFilter = 'all';
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all'));
@@ -431,64 +479,129 @@
 
   /* ── Detail table ── */
   function renderTable() {
-    const search   = document.getElementById('search-box').value.trim().toLowerCase();
-    const rows     = allRows.filter(r => r.tenantName === selectedTenant);
-    const filtered = rows.filter(r => {
-      if (activeFilter === 'has-secrets')       { if (r.type !== 'Secret') return false; }
-      else if (activeFilter === 'no-secrets')   { if (r.type === 'Secret') return false; }
-      else if (activeFilter !== 'all' && r.status !== activeFilter) return false;
-      if (search && !r.appName.toLowerCase().includes(search) && !r.secretName.toLowerCase().includes(search)) return false;
-      return true;
-    });
+    const search = document.getElementById('search-box').value.trim().toLowerCase();
+    const rows   = allRows.filter(r => r.tenantName === selectedTenant);
+
+    // Group all rows by objectId, preserving one entry per app
+    const appMap = new Map();
+    for (const r of rows) {
+      if (!appMap.has(r.objectId)) appMap.set(r.objectId, { meta: r, secrets: [] });
+      if (r.type !== 'none') appMap.get(r.objectId).secrets.push(r);
+    }
+
+    // Filter apps: keep app if any of its credentials pass the filter, or if the app itself passes
+    const visibleApps = [];
+    for (const { meta, secrets } of appMap.values()) {
+      const appMatch = !search || meta.appName.toLowerCase().includes(search);
+      const filteredSecrets = secrets.filter(r => {
+        if (activeFilter === 'has-secrets' && r.type !== 'Secret') return false;
+        if (activeFilter === 'no-secrets'  && r.type === 'Secret')  return false;
+        if (activeFilter !== 'all' && activeFilter !== 'has-secrets' && activeFilter !== 'no-secrets' && r.status !== activeFilter) return false;
+        if (search && !appMatch && !r.secretName.toLowerCase().includes(search)) return false;
+        return true;
+      });
+
+      // For 'no-secrets' filter, only show apps with no secrets at all
+      if (activeFilter === 'no-secrets' && secrets.length > 0) continue;
+      // For 'has-secrets' filter, skip apps with no matching secrets
+      if (activeFilter === 'has-secrets' && filteredSecrets.length === 0) continue;
+      // For status filters, skip apps with no matching secrets (unless app has none)
+      if (!['all','has-secrets','no-secrets'].includes(activeFilter) && secrets.length > 0 && filteredSecrets.length === 0) continue;
+      // Search: skip if neither app name nor any secret name matches
+      if (search && !appMatch && filteredSecrets.length === 0) continue;
+
+      // Sort secrets: oldest expiry first (null = no expiry, goes last)
+      filteredSecrets.sort((a, b) => {
+        if (!a.expires && !b.expires) return 0;
+        if (!a.expires) return 1;
+        if (!b.expires) return -1;
+        return new Date(a.expires) - new Date(b.expires);
+      });
+
+      visibleApps.push({ meta, secrets: filteredSecrets });
+    }
 
     const tbody = document.getElementById('table-body');
     tbody.innerHTML = '';
-    document.getElementById('table-wrap').style.display = filtered.length ? '' : 'none';
-    document.getElementById('empty').style.display = (!filtered.length && rows.length) ? 'block' : 'none';
+    document.getElementById('table-wrap').style.display = visibleApps.length ? '' : 'none';
+    document.getElementById('empty').style.display = (!visibleApps.length && rows.length) ? 'block' : 'none';
 
-    for (const r of filtered) {
-      const tr = document.createElement('tr');
-      const canWrite = permissions[r.tenantName];
+    for (const { meta, secrets } of visibleApps) {
+      const canWrite = permissions[meta.tenantName];
+      const secretCount = secrets.length;
 
-      if (r.type === 'none') {
-        tr.innerHTML = `
-          <td><div class="app-name">${esc(r.appName)}</div><div class="app-id">${esc(r.appId)}</div></td>
-          <td class="no-creds">No secrets or certificates</td>
-          <td>—</td><td>—</td><td>—</td>
-          <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
-            ${canWrite ? `<button class="btn-add-secret">+ Add secret</button><button class="btn-delete-app">Delete app</button>` : `<button class="no-perm-icon" title="Cannot modify – click for details">🔒</button>`}
-          </td>`;
-        if (canWrite) {
-          tr.querySelector('.btn-add-secret').addEventListener('click', () => openAddSecret(r));
-          tr.querySelector('.btn-delete-app').addEventListener('click', () => deleteApp(r, tr.querySelector('.btn-delete-app')));
-        } else {
-          tr.querySelector('.no-perm-icon').addEventListener('click', () => showRemoveError(tr.querySelector('.no-perm-icon'), r.tenantName));
-        }
+      // App header row (collapsed by default)
+      const oldest = secrets[0] || null;
+      const appTr = document.createElement('tr');
+      appTr.className = 'tr-app';
+      appTr.innerHTML = `
+        <td style="display:flex;align-items:center;gap:0">
+          <span class="chevron">▶</span>
+          <div>
+            <div class="app-name">${esc(meta.appName)}</div>
+            <div class="app-id">${esc(meta.appId)}</div>
+          </div>
+          <span style="margin-left:10px;font-size:12px;color:var(--muted);white-space:nowrap">${secretCount === 0 ? 'No credentials' : secretCount + ' secret' + (secretCount !== 1 ? 's' : '')}</span>
+        </td>
+        <td>${oldest ? formatDate(oldest.expires) : '—'}</td>
+        <td>${oldest ? `<span class="badge ${oldest.status}">${badgeLabel(oldest.status, oldest.daysLeft)}</span>` : '—'}</td>
+        <td>${oldest ? `<strong style="color:${daysColor(oldest.status)}">${oldest.daysLeft === null ? '—' : oldest.daysLeft < 0 ? Math.abs(oldest.daysLeft) + 'd ago' : oldest.daysLeft + 'd'}</strong>` : '—'}</td>
+        <td colspan="2" style="text-align:right;white-space:nowrap">
+          ${canWrite
+            ? `<button class="btn-add-secret">+ Add secret</button> <button class="btn-delete-app">Delete app</button>`
+            : `<button class="no-perm-icon" title="Cannot modify – click for details">🔒</button>`}
+        </td>`;
+
+      // Collect child rows before wiring toggle
+      const childRows = [];
+
+      if (secrets.length === 0) {
+        const noTr = document.createElement('tr');
+        noTr.className = 'tr-secret';
+        noTr.style.display = 'none';
+        noTr.innerHTML = `<td class="no-creds">No secrets or certificates</td><td>—</td><td>—</td><td>—</td><td colspan="2"></td>`;
+        childRows.push(noTr);
       } else {
-        tr.innerHTML = `
-          <td><div class="app-name">${esc(r.appName)}</div><div class="app-id">${esc(r.appId)}</div></td>
-          <td>
-            <div>${esc(r.type)}: ${esc(r.secretName)}</div>
-            ${r.hint ? `<div class="secret-hint">${esc(r.hint)}</div>` : ''}
-          </td>
-          <td>${formatDate(r.expires)}</td>
-          <td><span class="badge ${r.status}">${badgeLabel(r.status, r.daysLeft)}</span></td>
-          <td><strong style="color:${daysColor(r.status)}">${r.daysLeft === null ? '—' : r.daysLeft < 0 ? Math.abs(r.daysLeft) + 'd ago' : r.daysLeft + 'd'}</strong></td>
-          <td style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
-            ${canWrite ? `<button class="btn-add-secret">+ Add secret</button>` : ''}
-            ${r.type === 'Secret' ? (canWrite ? `<button class="btn-remove">Remove</button>` : `<button class="no-perm-icon" title="Cannot remove – click for details">🔒</button>`) : ''}
-            ${canWrite ? `<button class="btn-delete-app">Delete app</button>` : ''}
-          </td>`;
-        const ab = tr.querySelector('.btn-add-secret');
-        if (ab) ab.addEventListener('click', () => openAddSecret(r));
-        if (r.type === 'Secret') {
-          const rb = tr.querySelector('.btn-remove, .no-perm-icon');
-          if (rb) rb.addEventListener('click', () => canWrite ? removeSecret(r, rb) : showRemoveError(rb, r.tenantName));
+        for (const r of secrets) {
+          const tr = document.createElement('tr');
+          tr.className = 'tr-secret';
+          tr.style.display = 'none';
+          tr.innerHTML = `
+            <td>
+              <div>${esc(r.type)}: ${esc(r.secretName)}</div>
+              ${r.hint ? `<div class="secret-hint">${esc(r.hint)}</div>` : ''}
+            </td>
+            <td>${formatDate(r.expires)}</td>
+            <td><span class="badge ${r.status}">${badgeLabel(r.status, r.daysLeft)}</span></td>
+            <td><strong style="color:${daysColor(r.status)}">${r.daysLeft === null ? '—' : r.daysLeft < 0 ? Math.abs(r.daysLeft) + 'd ago' : r.daysLeft + 'd'}</strong></td>
+            <td colspan="2" style="text-align:right">
+              ${r.type === 'Secret' ? (canWrite ? `<button class="btn-remove">Remove</button>` : `<button class="no-perm-icon" title="Cannot remove – click for details">🔒</button>`) : ''}
+            </td>`;
+          if (r.type === 'Secret') {
+            const rb = tr.querySelector('.btn-remove, .no-perm-icon');
+            if (rb) rb.addEventListener('click', () => canWrite ? removeSecret(r, rb) : showRemoveError(rb, r.tenantName));
+          }
+          childRows.push(tr);
         }
-        const db = tr.querySelector('.btn-delete-app');
-        if (db) db.addEventListener('click', () => deleteApp(r, db));
       }
-      tbody.appendChild(tr);
+
+      // Toggle on app row click (but not on action buttons)
+      const chevron = appTr.querySelector('.chevron');
+      appTr.addEventListener('click', e => {
+        if (e.target.closest('button')) return;
+        const open = chevron.classList.toggle('open');
+        childRows.forEach(tr => { tr.style.display = open ? '' : 'none'; });
+      });
+
+      if (canWrite) {
+        appTr.querySelector('.btn-add-secret').addEventListener('click', () => openAddSecret(meta));
+        appTr.querySelector('.btn-delete-app').addEventListener('click', () => deleteApp(meta, appTr.querySelector('.btn-delete-app')));
+      } else {
+        appTr.querySelector('.no-perm-icon').addEventListener('click', () => showRemoveError(appTr.querySelector('.no-perm-icon'), meta.tenantName));
+      }
+
+      tbody.appendChild(appTr);
+      childRows.forEach(tr => tbody.appendChild(tr));
     }
   }
 
@@ -516,7 +629,9 @@
       const res  = await fetch(`/api/apps/${encodeURIComponent(r.objectId)}`, { method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ tenantRecordId: r.tenantRecordId }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Unknown error');
-      btn.textContent = 'Deleted'; btn.style.borderColor = '#a8a8a8'; btn.style.color = 'var(--muted)';
+      btn.textContent = 'Waiting for Azure…';
+      await pollUntil(() => !allRows.some(row => row.objectId === r.objectId));
+      applyCurrentData();
     } catch (e) {
       showInlineError(btn.closest('tr'), `Failed to delete app: ${esc(e.message)}`);
       btn.disabled = false; btn.classList.remove('removing'); btn.textContent = 'Delete app';
@@ -530,8 +645,9 @@
       const res  = await fetch('/api/secrets/remove', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ tenantRecordId: r.tenantRecordId, objectId: r.objectId, keyId: r.keyId }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Unknown error');
-      btn.textContent = 'Removed'; btn.disabled = true; btn.classList.remove('removing');
-      btn.style.borderColor = '#a8a8a8'; btn.style.color = 'var(--muted)';
+      btn.textContent = 'Waiting for Azure…';
+      await pollUntil(() => !allRows.some(row => row.keyId === r.keyId));
+      applyCurrentData();
     } catch (e) {
       showInlineError(btn.closest('tr'), `Failed to remove: ${esc(e.message)}`);
       btn.disabled = false; btn.classList.remove('removing'); btn.textContent = 'Remove';
@@ -544,12 +660,20 @@
   function openAddSecret(r) {
     _addSecretRow = r;
     document.getElementById('modal-app-name').textContent = `Add secret — ${r.appName}`;
-    document.getElementById('modal-app-sub').textContent  = r.appId;
-    document.getElementById('modal-secret-name').value    = '';
-    // Default expiry: 1 year from today
-    const d = new Date(); d.setFullYear(d.getFullYear() + 1);
-    document.getElementById('modal-secret-expiry').value  = d.toISOString().slice(0, 10);
-    document.getElementById('modal-error').style.display  = 'none';
+    const fields = [
+      ['Tenant',        r.tenantName],
+      ['Tenant ID',     r.tenantId   || '—'],
+      ['Application ID', r.appId     || '—'],
+      ['Object ID',     r.objectId   || '—'],
+    ];
+    document.getElementById('modal-app-info').innerHTML = fields.map(([k, v]) =>
+      `<span style="color:#605e5c;font-weight:600;white-space:nowrap">${k}</span><span style="font-family:monospace;color:#201f1e;word-break:break-all">${esc(v)}</span>`
+    ).join('');
+    document.getElementById('modal-secret-name').value   = '';
+    document.getElementById('modal-secret-expiry').value = '';
+    document.getElementById('modal-secret-expiry').style.display = 'none';
+    selectExpiryPreset(12);
+    document.getElementById('modal-error').style.display = 'none';
     document.getElementById('modal-form').style.display   = '';
     document.getElementById('modal-result').style.display = 'none';
     document.getElementById('modal-submit').disabled      = false;
@@ -563,6 +687,29 @@
     _addSecretRow = null;
   }
 
+  function selectExpiryPreset(months) {
+    document.querySelectorAll('.expiry-preset').forEach(b => {
+      const active = parseInt(b.dataset.months) === months;
+      b.style.background   = active ? 'var(--blue)' : 'white';
+      b.style.color        = active ? 'white' : '';
+      b.style.borderColor  = active ? 'var(--blue)' : '#c8c6c4';
+    });
+    const dateInput = document.getElementById('modal-secret-expiry');
+    if (months === 0) {
+      dateInput.style.display = '';
+      dateInput.focus();
+    } else {
+      const d = new Date();
+      d.setMonth(d.getMonth() + months);
+      dateInput.value = d.toISOString().slice(0, 10);
+      dateInput.style.display = 'none';
+    }
+  }
+
+  document.querySelectorAll('.expiry-preset').forEach(btn => {
+    btn.addEventListener('click', () => selectExpiryPreset(parseInt(btn.dataset.months)));
+  });
+
   document.getElementById('modal-cancel').addEventListener('click', closeAddSecret);
   document.getElementById('add-secret-modal').addEventListener('click', e => {
     if (e.target === document.getElementById('add-secret-modal')) closeAddSecret();
@@ -572,9 +719,14 @@
     const r    = _addSecretRow;
     const name = document.getElementById('modal-secret-name').value.trim();
     const exp  = document.getElementById('modal-secret-expiry').value;
+    const err  = document.getElementById('modal-error');
     if (!name) {
-      const err = document.getElementById('modal-error');
       err.textContent = 'Please enter a display name for the secret.';
+      err.style.display = 'block';
+      return;
+    }
+    if (document.getElementById('modal-secret-expiry').style.display !== 'none' && !exp) {
+      err.textContent = 'Please pick a custom expiry date.';
       err.style.display = 'block';
       return;
     }
@@ -590,8 +742,8 @@
       document.getElementById('modal-form').style.display   = 'none';
       document.getElementById('modal-result').style.display = '';
       document.getElementById('modal-secret-val').textContent = data.secretText;
+      pollUntil(() => allRows.some(row => row.keyId === data.keyId)).then(applyCurrentData);
     } catch (e) {
-      const err = document.getElementById('modal-error');
       err.textContent = e.message;
       err.style.display = 'block';
       document.getElementById('modal-submit').disabled    = false;
@@ -607,10 +759,41 @@
     });
   });
 
-  document.getElementById('modal-done').addEventListener('click', () => {
-    closeAddSecret();
-    loadData();
-  });
+  document.getElementById('modal-done').addEventListener('click', closeAddSecret);
+
+  /* ── Silent fetch + poll helpers ── */
+  async function silentFetch() {
+    try {
+      const res = await fetch('/api/secrets');
+      if (!res.ok) return;
+      const data = await res.json();
+      allRows         = data.rows;
+      permissions     = data.permissions     || {};
+      tenantRecordIds = data.tenantRecordIds || {};
+      tenantErrors    = data.errors          || [];
+    } catch {}
+  }
+
+  function applyCurrentData() {
+    document.getElementById('last-refresh-lbl').textContent = 'Last refresh: ' + new Date().toLocaleTimeString();
+    if (selectedTenant) {
+      const tenantRows = allRows.filter(r => r.tenantName === selectedTenant);
+      updateDetailStats(tenantRows);
+      renderTable();
+      document.getElementById('view-detail').style.display = 'block';
+    } else {
+      showGrid();
+    }
+  }
+
+  async function pollUntil(condition, { interval = 2500, max = 12 } = {}) {
+    for (let i = 0; i < max; i++) {
+      await new Promise(r => setTimeout(r, interval));
+      await silentFetch();
+      if (condition()) return true;
+    }
+    return false;
+  }
 
   /* ── Data loading ── */
   async function loadData() {
@@ -646,9 +829,10 @@
         eb.style.display = 'block';
         return;
       }
-      allRows      = data.rows;
-      permissions  = data.permissions || {};
-      tenantErrors = data.errors || [];
+      allRows         = data.rows;
+      permissions     = data.permissions     || {};
+      tenantRecordIds = data.tenantRecordIds || {};
+      tenantErrors    = data.errors          || [];
 
       const errWrap = document.getElementById('tenant-errors');
       errWrap.innerHTML = '';
@@ -679,6 +863,65 @@
       document.getElementById('btn-refresh').disabled  = false;
     }
   }
+
+  /* ── Create app modal ── */
+  function openCreateApp() {
+    document.getElementById('create-app-modal').dataset.tenantRecordId = tenantRecordIds[selectedTenant] || '';
+    document.getElementById('create-app-tenant-name').textContent = selectedTenant;
+    document.getElementById('create-app-name').value = '';
+    document.getElementById('create-app-desc').value = '';
+    document.getElementById('create-app-audience').value = 'AzureADMyOrg';
+    document.getElementById('create-app-error').style.display = 'none';
+    document.getElementById('create-app-submit').disabled = false;
+    document.getElementById('create-app-submit').textContent = 'Create';
+    document.getElementById('create-app-modal').style.display = 'flex';
+  }
+
+  function closeCreateApp() {
+    document.getElementById('create-app-modal').style.display = 'none';
+  }
+
+  document.getElementById('create-app-cancel').addEventListener('click', closeCreateApp);
+  document.getElementById('create-app-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('create-app-modal')) closeCreateApp();
+  });
+
+  document.getElementById('create-app-submit').addEventListener('click', async () => {
+    const modal    = document.getElementById('create-app-modal');
+    const errEl    = document.getElementById('create-app-error');
+    const submitBtn = document.getElementById('create-app-submit');
+    const tenantRecordId = modal.dataset.tenantRecordId;
+    const displayName    = document.getElementById('create-app-name').value.trim();
+    const description    = document.getElementById('create-app-desc').value.trim();
+    const signInAudience = document.getElementById('create-app-audience').value;
+
+    errEl.style.display = 'none';
+    if (!displayName) { errEl.textContent = 'Display name is required.'; errEl.style.display = 'block'; return; }
+    if (!tenantRecordId) { errEl.textContent = 'Could not determine tenant. Please refresh and try again.'; errEl.style.display = 'block'; return; }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating…';
+    try {
+      const res  = await fetch('/api/apps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantRecordId, displayName, description, signInAudience }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Create failed');
+      submitBtn.textContent = 'Waiting for Azure…';
+      await pollUntil(() => allRows.some(r => r.objectId === data.objectId));
+      closeCreateApp();
+      applyCurrentData();
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create';
+    }
+  });
+
+  document.getElementById('btn-create-app').addEventListener('click', openCreateApp);
 
   /* ── Event listeners ── */
   document.getElementById('btn-back').addEventListener('click', showGrid);

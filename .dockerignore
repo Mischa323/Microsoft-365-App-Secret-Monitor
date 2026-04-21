@@ -5,3 +5,5 @@ users.json
 groups.json
 public/uploads
 data/
+audit.log
+*.log
