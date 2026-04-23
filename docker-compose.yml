@@ -1,6 +1,6 @@
 services:
   m365-monitor:
-    image: ghcr.io/${GITHUB_USER}/m365-app-secret-monitor:latest
+    image: ghcr.io/mischa323/ms365-app-secret-monitor:latest
     build: .
     ports:
       - "3000:3000"
