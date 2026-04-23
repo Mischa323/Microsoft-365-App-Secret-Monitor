@@ -142,6 +142,13 @@ if (!SESSION_SECRET) {
   }
 }
 
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    console.log(`[http] ${req.method} ${req.path} | host:${req.get('host')} | origin:${req.get('origin') || '-'} | ct:${req.get('content-type') || '-'}`);
+  }
+  next();
+});
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
