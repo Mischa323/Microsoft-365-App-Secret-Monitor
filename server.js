@@ -4,12 +4,15 @@ const session    = require('express-session');
 const fs         = require('fs');
 const path       = require('path');
 const crypto     = require('crypto');
+const https      = require('https');
+const http       = require('http');
 const bcrypt     = require('bcryptjs');
 const speakeasy  = require('speakeasy');
 const QRCode     = require('qrcode');
 const nodemailer = require('nodemailer');
 const helmet     = require('helmet');
 const rateLimit  = require('express-rate-limit');
+const selfsigned = require('selfsigned');
 const {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -18,7 +21,8 @@ const {
 } = require('@simplewebauthn/server');
 
 const app          = express();
-const PORT         = process.env.PORT || 3000;
+const PORT         = parseInt(process.env.PORT  || '3000', 10);
+const HTTPS_PORT   = parseInt(process.env.HTTPS_PORT || '3443', 10);
 const DATA_DIR      = process.env.DATA_DIR || __dirname;
 const ENV_PATH      = path.join(DATA_DIR, '.env');
 const TENANTS_PATH  = path.join(DATA_DIR, 'tenants.json');
@@ -142,6 +146,32 @@ if (!SESSION_SECRET) {
   }
 }
 
+// ── TLS certificate (self-signed, generated once and persisted) ───────────────
+const CERT_PATH = path.join(DATA_DIR, 'server.cert');
+const KEY_PATH  = path.join(DATA_DIR, 'server.key');
+
+function ensureCert() {
+  if (fs.existsSync(CERT_PATH) && fs.existsSync(KEY_PATH)) {
+    return { cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) };
+  }
+  console.log('[startup] Generating self-signed TLS certificate…');
+  const attrs = [{ name: 'commonName', value: 'ms365-monitor' }];
+  const opts  = { days: 3650, keySize: 2048 };
+  const pems  = selfsigned.generate(attrs, opts);
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(CERT_PATH, pems.cert, { mode: 0o600 });
+  fs.writeFileSync(KEY_PATH,  pems.private, { mode: 0o600 });
+  console.log('[startup] TLS certificate saved to', DATA_DIR);
+  return { cert: pems.cert, key: pems.private };
+}
+
+let tlsCredentials = null;
+try {
+  tlsCredentials = ensureCert();
+} catch (e) {
+  console.warn('[startup] Could not generate TLS cert — HTTPS disabled:', e.message);
+}
+
 app.use((req, res, next) => {
   console.log(`[http] ${req.method} ${req.path} | host:${req.get('host')} | ip:${req.ip}`);
   next();
@@ -165,6 +195,7 @@ app.use(helmet({
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: '5mb' }));
+app.set('trust proxy', 1);
 app.use(session({
   secret: SESSION_SECRET,
   resave: false,
@@ -173,6 +204,7 @@ app.use(session({
     maxAge:   8 * 60 * 60 * 1000, // default 8 h; overridden to 30 d on "remember me"
     httpOnly: true,
     sameSite: 'lax',
+    secure:   !!tlsCredentials,   // only sent over HTTPS when TLS is active
   },
 }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -2068,11 +2100,34 @@ process.on('unhandledRejection', (reason) => {
   console.error('[crash] Unhandled Promise Rejection — server will continue:', reason);
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+function onStart() {
   pruneLogFile(AUDIT_PATH);
   pruneLogFile(VERSION_LOG_FILE);
   appendVersionLog();
-  console.log(`M365 App Secret Monitor → http://localhost:${PORT}`);
-  console.log(`  Version: ${APP_VERSION}`);
   if (!isSetupComplete()) console.log('  First run — open the URL to complete setup.');
-});
+}
+
+if (tlsCredentials) {
+  // HTTP → HTTPS redirect
+  http.createServer((req, res) => {
+    const host = (req.headers.host || '').replace(/:.*$/, '');
+    res.writeHead(301, { Location: `https://${host}:${HTTPS_PORT}${req.url}` });
+    res.end();
+  }).listen(PORT, '0.0.0.0', () => {
+    console.log(`M365 App Secret Monitor → redirecting HTTP :${PORT} → HTTPS :${HTTPS_PORT}`);
+  });
+
+  https.createServer(tlsCredentials, app).listen(HTTPS_PORT, '0.0.0.0', () => {
+    onStart();
+    console.log(`M365 App Secret Monitor → https://localhost:${HTTPS_PORT}`);
+    console.log(`  Version: ${APP_VERSION}`);
+    console.log('  TLS: self-signed certificate (accept browser warning on first visit)');
+  });
+} else {
+  // Fallback: plain HTTP
+  http.createServer(app).listen(PORT, '0.0.0.0', () => {
+    onStart();
+    console.log(`M365 App Secret Monitor → http://localhost:${PORT}`);
+    console.log(`  Version: ${APP_VERSION}`);
+  });
+}

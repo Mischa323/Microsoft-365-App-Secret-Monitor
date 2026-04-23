@@ -4,3 +4,5 @@ tenants.json
 users.json
 groups.json
 public/uploads/
+server.cert
+server.key
