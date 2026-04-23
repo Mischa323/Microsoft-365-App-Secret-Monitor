@@ -534,7 +534,10 @@
 
       setStep(4);
     } catch (e) {
-      showAlert('alert-3', e.message);
+      const msg = e.message === 'Failed to fetch'
+        ? 'Could not reach the server. The container may be restarting — wait a moment and try again.'
+        : e.message;
+      showAlert('alert-3', msg);
     } finally {
       btn.disabled = false; btn.textContent = 'Finish setup →';
     }

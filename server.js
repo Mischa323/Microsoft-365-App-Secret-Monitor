@@ -29,22 +29,29 @@ const AUDIT_PATH    = path.join(DATA_DIR, 'audit.log');
 
 // ── Write threshold defaults to .env if not already set ───────────────────────
 (function applyThresholdDefaults() {
-  const defaults = { THRESHOLD_CRITICAL: 14, THRESHOLD_WARNING: 30, THRESHOLD_NOTICE: 60 };
-  let changed = false;
-  let env = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
-  function patchEnv(content, key, value) {
-    const line = `${key}=${value}`;
-    const re = new RegExp(`^${key}=.*$`, 'm');
-    return re.test(content) ? content.replace(re, line) : content + `\n${line}`;
-  }
-  for (const [key, val] of Object.entries(defaults)) {
-    if (!process.env[key]) {
-      process.env[key] = String(val);
-      env = patchEnv(env, key, val);
-      changed = true;
+  try {
+    const defaults = { THRESHOLD_CRITICAL: 14, THRESHOLD_WARNING: 30, THRESHOLD_NOTICE: 60 };
+    let changed = false;
+    let env = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
+    function patchEnv(content, key, value) {
+      const line = `${key}=${value}`;
+      const re = new RegExp(`^${key}=.*$`, 'm');
+      return re.test(content) ? content.replace(re, line) : content + `\n${line}`;
     }
+    for (const [key, val] of Object.entries(defaults)) {
+      if (!process.env[key]) {
+        process.env[key] = String(val);
+        env = patchEnv(env, key, val);
+        changed = true;
+      }
+    }
+    if (changed) {
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(ENV_PATH, env);
+    }
+  } catch (e) {
+    console.warn('[startup] Could not write threshold defaults to .env:', e.message);
   }
-  if (changed) fs.writeFileSync(ENV_PATH, env);
 })();
 
 // ── Tenant storage ────────────────────────────────────────────────────────────
@@ -335,6 +342,10 @@ app.get('/', (req, res) => {
   res.redirect(isAuth ? '/dashboard' : '/login');
 });
 
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, setup: isSetupComplete(), version: process.env.APP_VERSION || 'dev' });
+});
+
 // ── Setup ─────────────────────────────────────────────────────────────────────
 app.get('/setup', (req, res) => {
   if (isSetupComplete()) return res.redirect('/');
@@ -347,11 +358,11 @@ app.get('/api/setup/totp', async (req, res) => {
     const secret = speakeasy.generateSecret({ name: 'M365 Secret Monitor', length: 20 });
     req.session.setupTotpSecret = secret.base32;
     req.session.setupTotpVerified = false;
-    await new Promise((resolve, reject) => req.session.save(e => e ? reject(e) : resolve()));
+    // express-session auto-saves modified sessions on response end
     const qrDataUrl = await QRCode.toDataURL(secret.otpauth_url);
     res.json({ secret: secret.base32, qrDataUrl });
   } catch (e) {
-    console.error('TOTP setup error:', e);
+    console.error('[setup] TOTP error:', e);
     res.status(500).json({ error: 'Failed to generate 2FA secret: ' + e.message });
   }
 });
@@ -367,10 +378,11 @@ app.post('/api/setup/totp/verify', (req, res) => {
 });
 
 app.post('/api/setup', async (req, res) => {
+  console.log('[setup] POST /api/setup received');
   if (isSetupComplete()) return res.status(403).json({ error: 'Setup already completed.' });
 
   const { username, email, password, confirmPassword, timezone,
-          enable2fa, tenantName, tenantId, clientId, clientSecret } = req.body;
+          enable2fa, tenantName, tenantId, clientId, clientSecret } = req.body || {};
 
   if (!username || username.length < 3)
     return res.status(400).json({ error: 'Username must be at least 3 characters.' });
@@ -1984,6 +1996,22 @@ app.get('/api/version-log', requireLogin, (req, res) => {
   let entries = readVersionLog();
   if (filter) entries = entries.filter(e => e.version.toLowerCase().includes(filter));
   res.json({ entries: entries.slice(0, limit), total: entries.length });
+});
+
+// Global Express error handler — catches errors passed to next(err)
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('[express] Unhandled error:', err.message || err);
+  if (!res.headersSent) {
+    res.status(err.status || 500).json({ error: err.message || 'Internal server error.' });
+  }
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[crash] Uncaught Exception — server will continue:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[crash] Unhandled Promise Rejection — server will continue:', reason);
 });
 
 app.listen(PORT, () => {
