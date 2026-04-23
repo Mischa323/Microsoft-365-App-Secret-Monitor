@@ -496,51 +496,34 @@
     submitSetup();
   });
 
-  async function submitSetup() {
+  function submitSetup() {
     const btn = document.getElementById('btn-finish');
     btn.disabled = true; btn.textContent = 'Saving…';
 
-    try {
-      const res  = await fetch('/api/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username:        state.username,
-          email:           state.email,
-          password:        state.password,
-          confirmPassword: state.password,
-          timezone:        state.timezone,
-          enable2fa:       state.enable2fa ? 'true' : 'false',
-          tenantName:      state.tenantName || '',
-          tenantId:        state.tenantId,
-          clientId:        state.clientId,
-          clientSecret:    state.clientSecret,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      // Build summary
-      const list = document.getElementById('success-list');
-      const items = [
-        { text: `Admin account created (${state.username} · ${state.email})`, ok: true },
-        { text: state.enable2fa ? 'Two-factor authentication enabled' : 'Two-factor auth skipped — enable in Settings', ok: state.enable2fa },
-        { text: state.timezone + ' timezone configured',               ok: true },
-        { text: state.tenantId ? 'Azure AD credentials saved'         : 'Azure credentials — configure in Settings', ok: !!state.tenantId },
-      ];
-      list.innerHTML = items.map(i =>
-        `<div class="success-item"><div class="dot${i.ok ? '' : ' grey'}"></div>${i.text}</div>`
-      ).join('');
-
-      setStep(4);
-    } catch (e) {
-      const msg = e.message === 'Failed to fetch'
-        ? 'Could not reach the server. The container may be restarting — wait a moment and try again.'
-        : e.message;
-      showAlert('alert-3', msg);
-    } finally {
-      btn.disabled = false; btn.textContent = 'Finish setup →';
+    // Use a native form POST so the submission works in any Docker/proxy
+    // environment where fetch() might be intercepted or blocked.
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/api/setup';
+    const fields = {
+      username:        state.username,
+      email:           state.email,
+      password:        state.password,
+      confirmPassword: state.password,
+      timezone:        state.timezone,
+      enable2fa:       state.enable2fa ? 'true' : 'false',
+      tenantName:      state.tenantName || '',
+      tenantId:        state.tenantId   || '',
+      clientId:        state.clientId   || '',
+      clientSecret:    state.clientSecret || '',
+    };
+    for (const [k, v] of Object.entries(fields)) {
+      const input = document.createElement('input');
+      input.type = 'hidden'; input.name = k; input.value = v;
+      form.appendChild(input);
     }
+    document.body.appendChild(form);
+    form.submit();
   }
 
   // Pre-select user's local timezone if available
@@ -549,6 +532,15 @@
     const opt = document.querySelector(`#timezone option[value="${local}"]`);
     if (opt) opt.selected = true;
   } catch {}
+
+  // Handle redirect-back from form POST
+  const params = new URLSearchParams(location.search);
+  if (params.get('done') === '1') {
+    setStep(4);
+  } else if (params.get('error')) {
+    setStep(3);
+    showAlert('alert-3', decodeURIComponent(params.get('error')));
+  }
 </script>
 </body>
 </html>

@@ -143,9 +143,7 @@ if (!SESSION_SECRET) {
 }
 
 app.use((req, res, next) => {
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    console.log(`[http] ${req.method} ${req.path} | host:${req.get('host')} | origin:${req.get('origin') || '-'} | ct:${req.get('content-type') || '-'}`);
-  }
+  console.log(`[http] ${req.method} ${req.path} | host:${req.get('host')} | ip:${req.ip}`);
   next();
 });
 
@@ -482,10 +480,12 @@ app.post('/api/setup', async (req, res) => {
     // on an uninitialized MemoryStore session can hang the callback in some
     // Docker/Alpine environments, dropping the connection before res.json fires.
     console.log('[setup] sending ok response');
-    res.json({ ok: true });
+    // Redirect to success page — works for both form POST and fetch()
+    res.redirect('/setup?done=1');
   } catch (e) {
     console.error('[setup] ERROR:', e);
-    res.status(500).json({ error: 'Setup failed: ' + e.message });
+    const msg = encodeURIComponent('Setup failed: ' + e.message);
+    res.redirect(`/setup?error=${msg}`);
   }
 });
 
