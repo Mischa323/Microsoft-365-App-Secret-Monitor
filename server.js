@@ -2068,7 +2068,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('[crash] Unhandled Promise Rejection — server will continue:', reason);
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   pruneLogFile(AUDIT_PATH);
   pruneLogFile(VERSION_LOG_FILE);
   appendVersionLog();
