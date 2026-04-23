@@ -470,6 +470,31 @@ app.post('/api/setup', async (req, res) => {
   }
 });
 
+// ── Factory reset (admin only) ────────────────────────────────────────────────
+app.post('/api/reset', requireLogin, requireAdmin, async (req, res) => {
+  try {
+    const keysToRemove = [
+      'SETUP_COMPLETE', 'APP_USERNAME', 'APP_EMAIL', 'APP_PASSWORD_HASH',
+      'TWO_FA_ENABLED', 'TOTP_SECRET',
+    ];
+    let env = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
+    for (const key of keysToRemove) {
+      env = env.replace(new RegExp(`^${key}=.*$\\n?`, 'm'), '');
+      delete process.env[key];
+    }
+    fs.writeFileSync(ENV_PATH, env);
+
+    if (fs.existsSync(USERS_PATH))   fs.unlinkSync(USERS_PATH);
+    if (fs.existsSync(TENANTS_PATH)) fs.unlinkSync(TENANTS_PATH);
+
+    await new Promise(resolve => req.session.destroy(resolve));
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[reset] ERROR:', e);
+    res.status(500).json({ error: 'Reset failed: ' + e.message });
+  }
+});
+
 // ── Login ─────────────────────────────────────────────────────────────────────
 app.get('/login', requireSetup, (req, res) => {
   const isAuth = req.session.userId || req.session.authenticated;

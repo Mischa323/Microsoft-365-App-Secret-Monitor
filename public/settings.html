@@ -791,6 +791,25 @@
       </div>
     </div>
   </div>
+  <!-- Danger zone -->
+  <div id="section-danger" style="margin-top:32px;display:none">
+    <div class="page-header" style="margin-bottom:16px"><h1>Danger zone</h1></div>
+    <div style="background:white;border:1px solid #f1707b;border-radius:8px;padding:24px 28px">
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:14px;font-weight:700;margin-bottom:4px">Reset to factory defaults</div>
+          <p style="font-size:13px;color:var(--muted);line-height:1.5">
+            Clears all accounts, tenants, and setup state. The app will return to the initial setup wizard.
+            <strong>This cannot be undone.</strong>
+          </p>
+        </div>
+        <button id="btn-factory-reset" style="padding:9px 20px;background:var(--red);color:white;border:none;border-radius:4px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">
+          Reset &amp; re-run setup
+        </button>
+      </div>
+      <div id="reset-msg" style="margin-top:12px;font-size:13px;display:none"></div>
+    </div>
+  </div>
 </main>
 
 <div style="text-align:center;padding:24px;font-size:12px;color:#a19f9d">
@@ -825,6 +844,7 @@
         document.getElementById('section-groups').style.display = '';
         document.getElementById('section-audit').style.display = '';
         document.getElementById('section-version-log').style.display = '';
+        document.getElementById('section-danger').style.display = '';
         await Promise.all([loadUsers(), loadGroups(), loadAuditLog(), loadSso(), loadVersionLog(), loadRetention()]);
       }
     } catch {}
@@ -1966,6 +1986,28 @@
     } finally {
       btn.disabled = false; btn.textContent = 'Save';
       setTimeout(() => { msg.textContent = ''; }, 4000);
+    }
+  });
+
+  document.getElementById('btn-factory-reset').addEventListener('click', async () => {
+    if (!confirm('This will delete all users, tenants, and settings, and redirect to the setup wizard. Are you sure?')) return;
+    const btn = document.getElementById('btn-factory-reset');
+    const msg = document.getElementById('reset-msg');
+    btn.disabled = true; btn.textContent = 'Resetting…';
+    msg.style.display = 'none';
+    try {
+      const res  = await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Reset failed');
+      msg.style.display = '';
+      msg.style.color = '#107c10';
+      msg.textContent = 'Reset successful — redirecting to setup…';
+      setTimeout(() => { window.location.href = '/setup'; }, 1500);
+    } catch (e) {
+      msg.style.display = '';
+      msg.style.color = 'var(--red)';
+      msg.textContent = e.message;
+      btn.disabled = false; btn.textContent = 'Reset & re-run setup';
     }
   });
 </script>
