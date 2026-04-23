@@ -1,5 +1,5 @@
 {
-  "name": "m365-app-secret-monitor",
+  "name": "ms365-app-secret-monitor",
   "version": "1.0.0",
   "description": "Monitor Microsoft 365 app registration secret expiry dates",
   "main": "server.js",
