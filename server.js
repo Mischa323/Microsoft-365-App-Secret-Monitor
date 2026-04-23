@@ -458,10 +458,11 @@ app.post('/api/setup', async (req, res) => {
       console.log('[setup] tenant saved');
     }
 
-    // Destroy the setup session before responding so express-session's
-    // post-response save hook has nothing to write (avoids dropped connections
-    // when the MemoryStore tries to persist a partially-modified session).
-    await new Promise(resolve => req.session.destroy(resolve));
+    // Do not touch the session here. If the user used TOTP during setup,
+    // those session keys are harmless once SETUP_COMPLETE=true (the TOTP
+    // endpoint returns 403 from that point on). Calling session.destroy()
+    // on an uninitialized MemoryStore session can hang the callback in some
+    // Docker/Alpine environments, dropping the connection before res.json fires.
     console.log('[setup] sending ok response');
     res.json({ ok: true });
   } catch (e) {
