@@ -403,7 +403,11 @@ app.post('/api/setup', async (req, res) => {
     return res.status(400).json({ error: 'Invalid Client ID format.' });
 
   try {
-    const hash = await bcrypt.hash(password, 12);
+    console.log('[setup] hashing password...');
+    const hash = await new Promise((resolve, reject) =>
+      bcrypt.hash(password, 12, (err, h) => err ? reject(err) : resolve(h))
+    );
+    console.log('[setup] hash done, writing env...');
     const totpEnabled = enable2fa === 'true';
     const totpSecret  = totpEnabled ? req.session.setupTotpSecret : '';
 
@@ -425,6 +429,7 @@ app.post('/api/setup', async (req, res) => {
     env = setEnvVar(env, 'SETUP_COMPLETE',    'true');
     if (totpEnabled) env = setEnvVar(env, 'TOTP_SECRET', totpSecret);
     fs.writeFileSync(ENV_PATH, env);
+    console.log('[setup] env written, saving users...');
 
     // Save first admin user to users.json
     const adminUser = {
@@ -440,6 +445,7 @@ app.post('/api/setup', async (req, res) => {
       enabled: true,
     };
     saveUsers([adminUser]);
+    console.log('[setup] users saved');
 
     // Save first tenant to tenants.json if provided
     if (tenantId && clientId && clientSecret) {
@@ -449,13 +455,17 @@ app.post('/api/setup', async (req, res) => {
         tenantId, clientId, clientSecret,
         enabled: true,
       }]);
+      console.log('[setup] tenant saved');
     }
 
-    delete req.session.setupTotpSecret;
-    delete req.session.setupTotpVerified;
+    // Destroy the setup session before responding so express-session's
+    // post-response save hook has nothing to write (avoids dropped connections
+    // when the MemoryStore tries to persist a partially-modified session).
+    await new Promise(resolve => req.session.destroy(resolve));
+    console.log('[setup] sending ok response');
     res.json({ ok: true });
   } catch (e) {
-    console.error('Setup error:', e.message);
+    console.error('[setup] ERROR:', e);
     res.status(500).json({ error: 'Setup failed: ' + e.message });
   }
 });
