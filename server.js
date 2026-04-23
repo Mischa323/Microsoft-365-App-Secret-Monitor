@@ -124,11 +124,22 @@ function sanitizeUser(u) {
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 
-// Session secret — refuse to start silently with a known-weak default
+// Session secret — auto-generate and persist to DATA_DIR/.env on first run
 let SESSION_SECRET = process.env.SESSION_SECRET;
 if (!SESSION_SECRET) {
   SESSION_SECRET = crypto.randomBytes(32).toString('hex');
-  console.warn('[security] SESSION_SECRET not set — using a random secret. Sessions will be invalidated on restart. Set SESSION_SECRET in .env for production.');
+  process.env.SESSION_SECRET = SESSION_SECRET;
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    let env = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
+    if (!env.includes('SESSION_SECRET=')) {
+      env = `SESSION_SECRET=${SESSION_SECRET}\n` + env;
+      fs.writeFileSync(ENV_PATH, env);
+      console.log('[startup] Generated and saved SESSION_SECRET to', ENV_PATH);
+    }
+  } catch (e) {
+    console.warn('[startup] Could not persist SESSION_SECRET:', e.message);
+  }
 }
 
 app.use(helmet({
