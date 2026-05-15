@@ -104,6 +104,20 @@ function sanitizeUser(u) {
   return safe;
 }
 
+// ── Migration: promote first admin to superadmin if no superadmin exists ──────
+(function migrateSuperAdmin() {
+  if (!fs.existsSync(USERS_PATH)) return;
+  try {
+    const users = JSON.parse(fs.readFileSync(USERS_PATH, 'utf8'));
+    if (users.some(u => u.role === 'superadmin')) return;
+    const idx = users.findIndex(u => u.role === 'admin');
+    if (idx === -1) return;
+    users[idx].role = 'superadmin';
+    fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 2));
+    console.log(`[migration] Promoted "${users[idx].username}" to superadmin.`);
+  } catch {}
+})();
+
 // ── Migration: create users.json from .env if it doesn't exist ────────────────
 (function migrateUsersFromEnv() {
   if (fs.existsSync(USERS_PATH)) return;
@@ -287,8 +301,17 @@ function requireLogin(req, res, next) {
 
 function requireAdmin(req, res, next) {
   requireLogin(req, res, () => {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
       return res.status(403).json({ error: 'Admin access required.' });
+    }
+    next();
+  });
+}
+
+function requireSuperAdmin(req, res, next) {
+  requireLogin(req, res, () => {
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Super admin access required.' });
     }
     next();
   });
@@ -296,7 +319,7 @@ function requireAdmin(req, res, next) {
 
 // ── Tenant access helper ──────────────────────────────────────────────────────
 function getUserTenantIds(user) {
-  if (user.role === 'admin') return null; // null = all tenants
+  if (user.role === 'admin' || user.role === 'superadmin') return null; // null = all tenants
   const groups = loadGroups().filter(g => (user.groupIds || []).includes(g.id));
   const ids = new Set();
   for (const g of groups) {
@@ -485,7 +508,7 @@ app.post('/api/setup', async (req, res) => {
       username,
       email: email.toLowerCase(),
       passwordHash: hash,
-      role: 'admin',
+      role: 'superadmin',
       groupIds: [],
       totpEnabled,
       totpSecret,
@@ -521,9 +544,27 @@ app.post('/api/setup', async (req, res) => {
   }
 });
 
-// ── Factory reset (admin only) ────────────────────────────────────────────────
-app.post('/api/reset', requireLogin, requireAdmin, async (req, res) => {
+// ── Factory reset (superadmin only) ──────────────────────────────────────────
+app.post('/api/reset', requireLogin, requireSuperAdmin, async (req, res) => {
   try {
+    const { password, totpCode } = req.body;
+
+    // Verify password
+    const validPass = await new Promise((resolve, reject) =>
+      bcrypt.compare(password || '', req.user.passwordHash, (err, ok) => err ? reject(err) : resolve(ok))
+    );
+    if (!validPass) return res.status(401).json({ error: 'Incorrect password.' });
+
+    // Verify TOTP if enabled
+    if (req.user.totpEnabled && req.user.totpSecret) {
+      if (!totpCode) return res.status(401).json({ error: '2FA code is required.' });
+      const valid2fa = speakeasy.totp.verify({
+        secret: req.user.totpSecret, encoding: 'base32',
+        token: String(totpCode).replace(/\s/g, ''), window: 1,
+      });
+      if (!valid2fa) return res.status(401).json({ error: 'Invalid 2FA code.' });
+    }
+
     const keysToRemove = [
       'SETUP_COMPLETE', 'APP_USERNAME', 'APP_EMAIL', 'APP_PASSWORD_HASH',
       'TWO_FA_ENABLED', 'TOTP_SECRET',
@@ -538,6 +579,7 @@ app.post('/api/reset', requireLogin, requireAdmin, async (req, res) => {
     if (fs.existsSync(USERS_PATH))   fs.unlinkSync(USERS_PATH);
     if (fs.existsSync(TENANTS_PATH)) fs.unlinkSync(TENANTS_PATH);
 
+    audit(req, 'factory.reset', 'superadmin triggered factory reset');
     await new Promise(resolve => req.session.destroy(resolve));
     res.json({ ok: true });
   } catch (e) {
@@ -768,8 +810,8 @@ app.get('/settings', requireLogin, (req, res) =>
 
 // ── API: current user ─────────────────────────────────────────────────────────
 app.get('/api/me', requireLogin, (req, res) => {
-  const { id, username, email, role, groupIds, receiveNotifications } = req.user;
-  res.json({ id, username, email, role, groupIds: groupIds || [], receiveNotifications: !!receiveNotifications });
+  const { id, username, email, role, groupIds, receiveNotifications, totpEnabled } = req.user;
+  res.json({ id, username, email, role, groupIds: groupIds || [], receiveNotifications: !!receiveNotifications, totpEnabled: !!totpEnabled });
 });
 
 // ── API: users (admin only) ───────────────────────────────────────────────────
@@ -786,8 +828,10 @@ app.post('/api/users', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Please enter a valid email address.' });
   if (!password || password.length < 8)
     return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-  if (!['admin', 'viewer'].includes(role))
-    return res.status(400).json({ error: 'Role must be admin or viewer.' });
+  if (!['superadmin', 'admin', 'viewer'].includes(role))
+    return res.status(400).json({ error: 'Role must be superadmin, admin, or viewer.' });
+  if (role === 'superadmin' && req.user.role !== 'superadmin')
+    return res.status(403).json({ error: 'Only a superadmin can assign the superadmin role.' });
 
   const users = loadUsers();
   const lname = username.trim().toLowerCase();
@@ -827,17 +871,22 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
 
   const { username, email, password, role, groupIds, receiveNotifications, enabled } = req.body;
 
-  // Prevent demoting the last admin
-  if (role && role !== 'admin' && users[idx].role === 'admin') {
-    const adminCount = users.filter(u => u.role === 'admin' && u.enabled !== false).length;
-    if (adminCount <= 1)
+  const isAdminLike = r => r === 'admin' || r === 'superadmin';
+  const adminCount  = () => users.filter(u => isAdminLike(u.role) && u.enabled !== false).length;
+
+  // Prevent demoting the last admin/superadmin
+  if (role && !isAdminLike(role) && isAdminLike(users[idx].role)) {
+    if (adminCount() <= 1)
       return res.status(400).json({ error: 'Cannot demote the last admin.' });
   }
 
-  // Prevent disabling the last admin
-  if ((enabled === false || enabled === 'false') && users[idx].role === 'admin') {
-    const adminCount = users.filter(u => u.role === 'admin' && u.enabled !== false).length;
-    if (adminCount <= 1)
+  // Only superadmins may assign/remove the superadmin role
+  if (role === 'superadmin' && req.user.role !== 'superadmin')
+    return res.status(403).json({ error: 'Only a superadmin can assign the superadmin role.' });
+
+  // Prevent disabling the last admin/superadmin
+  if ((enabled === false || enabled === 'false') && isAdminLike(users[idx].role)) {
+    if (adminCount() <= 1)
       return res.status(400).json({ error: 'Cannot disable the last admin.' });
   }
 
@@ -887,9 +936,9 @@ app.delete('/api/users/:id', requireAdmin, (req, res) => {
   if (req.user.id === user.id)
     return res.status(400).json({ error: 'You cannot delete your own account.' });
 
-  // Prevent deleting last admin
-  if (user.role === 'admin') {
-    const adminCount = users.filter(u => u.role === 'admin' && u.enabled !== false).length;
+  // Prevent deleting last admin/superadmin
+  if (user.role === 'admin' || user.role === 'superadmin') {
+    const adminCount = users.filter(u => (u.role === 'admin' || u.role === 'superadmin') && u.enabled !== false).length;
     if (adminCount <= 1)
       return res.status(400).json({ error: 'Cannot delete the last admin.' });
   }
@@ -1502,6 +1551,158 @@ app.get('/api/tenants', requireLogin, (req, res) => {
   const accessibleIds = getUserTenantIds(req.user);
   const tenants = accessibleIds === null ? allTenants : allTenants.filter(t => accessibleIds.includes(t.id));
   res.json(tenants.map(sanitizeTenant));
+});
+
+// ── Connector app config (for automatic tenant provisioning) ─────────────────
+function getConnectorConfig() {
+  return {
+    clientId:        process.env.CONNECTOR_CLIENT_ID     || '',
+    clientSecretSet: !!process.env.CONNECTOR_CLIENT_SECRET,
+  };
+}
+
+app.get('/api/connector', requireAdmin, (req, res) => {
+  res.json(getConnectorConfig());
+});
+
+app.post('/api/connector', requireAdmin, (req, res) => {
+  const { clientId, clientSecret } = req.body;
+  if (!clientId || !clientId.trim()) return res.status(400).json({ error: 'Client ID is required.' });
+  let env = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
+  env = setEnvVar(env, 'CONNECTOR_CLIENT_ID', clientId.trim());
+  if (clientSecret && clientSecret.trim()) env = setEnvVar(env, 'CONNECTOR_CLIENT_SECRET', clientSecret.trim());
+  fs.writeFileSync(ENV_PATH, env);
+  process.env.CONNECTOR_CLIENT_ID = clientId.trim();
+  if (clientSecret && clientSecret.trim()) process.env.CONNECTOR_CLIENT_SECRET = clientSecret.trim();
+  audit(req, 'connector.save', `clientId=${clientId.trim()}`);
+  res.json({ ok: true });
+});
+
+// ── Auto tenant provisioning: start OAuth flow ────────────────────────────────
+app.get('/api/tenants/auto/start', requireAdmin, (req, res) => {
+  const { clientId } = getConnectorConfig();
+  const clientSecret = process.env.CONNECTOR_CLIENT_SECRET || '';
+  if (!clientId || !clientSecret) {
+    return res.status(400).json({ error: 'Connector app not configured. Enter the Client ID and Secret in the Connector section first.' });
+  }
+  const callbackUrl = `${req.protocol}://${req.get('host')}/api/tenants/auto/callback`;
+  const state = crypto.randomBytes(16).toString('hex');
+  req.session.connectorState    = state;
+  req.session.connectorCallback = callbackUrl;
+
+  const params = new URLSearchParams({
+    client_id:     clientId,
+    response_type: 'code',
+    redirect_uri:  callbackUrl,
+    scope:         'https://graph.microsoft.com/Application.ReadWrite.All https://graph.microsoft.com/AppRoleAssignment.ReadWrite.All offline_access',
+    state,
+    prompt:        'select_account',
+  });
+  res.json({ url: `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}` });
+});
+
+// ── Auto tenant provisioning: OAuth callback ──────────────────────────────────
+app.get('/api/tenants/auto/callback', async (req, res) => {
+  const { code, state, error, error_description } = req.query;
+  if (error) return res.redirect(`/settings?tenant_error=${encodeURIComponent(error_description || error)}`);
+  if (!state || state !== req.session.connectorState || !req.session.userId) {
+    return res.redirect('/settings?tenant_error=Invalid+session+or+OAuth+state');
+  }
+  const clientId     = process.env.CONNECTOR_CLIENT_ID     || '';
+  const clientSecret = process.env.CONNECTOR_CLIENT_SECRET || '';
+  const callbackUrl  = req.session.connectorCallback;
+  delete req.session.connectorState;
+  delete req.session.connectorCallback;
+
+  try {
+    // 1. Exchange code for access token
+    const tokenRes = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+      method: 'POST', signal: timeoutSignal(20000),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, code, redirect_uri: callbackUrl, grant_type: 'authorization_code' }),
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenRes.ok) throw new Error(tokenData.error_description || tokenData.error || 'Token exchange failed');
+    const accessToken = tokenData.access_token;
+
+    // 2. Decode JWT to get tenant ID
+    const jwtPayload = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64url').toString('utf8'));
+    const tenantId   = jwtPayload.tid;
+    if (!tenantId) throw new Error('Could not read tenant ID from token');
+
+    // 3. Check for duplicates
+    const existing = loadTenants();
+    if (existing.find(t => t.tenantId === tenantId)) {
+      return res.redirect('/settings?tenant_error=' + encodeURIComponent('This tenant is already configured.'));
+    }
+
+    // 4. Get organisation display name
+    let tenantName = 'New Tenant';
+    try {
+      const orgRes  = await fetch('https://graph.microsoft.com/v1.0/organization', { signal: timeoutSignal(), headers: { Authorization: `Bearer ${accessToken}` } });
+      const orgData = await orgRes.json();
+      tenantName    = orgData.value?.[0]?.displayName || tenantName;
+    } catch {}
+
+    // 5. Create app registration in target tenant
+    const createRes = await fetch('https://graph.microsoft.com/v1.0/applications', {
+      method: 'POST', signal: timeoutSignal(),
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        displayName: 'M365 Secret Monitor',
+        signInAudience: 'AzureADMyOrg',
+        requiredResourceAccess: [{
+          resourceAppId: '00000003-0000-0000-c000-000000000000',
+          resourceAccess: [{ id: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30', type: 'Role' }], // Application.Read.All
+        }],
+      }),
+    });
+    const appData = await createRes.json();
+    if (!createRes.ok) throw new Error(appData.error?.message || 'Failed to create app registration');
+
+    // 6. Create service principal so admin consent can be granted
+    const spRes  = await fetch('https://graph.microsoft.com/v1.0/servicePrincipals', {
+      method: 'POST', signal: timeoutSignal(),
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appId: appData.appId }),
+    });
+    const spData = await spRes.json();
+
+    // 7. Grant admin consent for Application.Read.All
+    if (spData.id) {
+      const graphSpRes = await fetch(
+        "https://graph.microsoft.com/v1.0/servicePrincipals?$filter=appId eq '00000003-0000-0000-c000-000000000000'&$select=id",
+        { signal: timeoutSignal(), headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const graphSpData = await graphSpRes.json();
+      const graphSpId   = graphSpData.value?.[0]?.id;
+      if (graphSpId) {
+        await fetch(`https://graph.microsoft.com/v1.0/servicePrincipals/${spData.id}/appRoleAssignments`, {
+          method: 'POST', signal: timeoutSignal(),
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ principalId: spData.id, resourceId: graphSpId, appRoleId: '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30' }),
+        });
+      }
+    }
+
+    // 8. Create client secret (2-year expiry)
+    const secretRes = await fetch(`https://graph.microsoft.com/v1.0/applications/${appData.id}/addPassword`, {
+      method: 'POST', signal: timeoutSignal(),
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passwordCredential: { displayName: 'M365 Secret Monitor', endDateTime: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString() } }),
+    });
+    const secretData = await secretRes.json();
+    if (!secretRes.ok) throw new Error(secretData.error?.message || 'Failed to create client secret');
+
+    // 9. Save tenant
+    existing.push({ id: crypto.randomUUID(), name: tenantName, tenantId, clientId: appData.appId, clientSecret: secretData.secretText, enabled: true });
+    saveTenants(existing);
+    audit(req, 'tenant.auto_create', `tenantId=${tenantId} name=${tenantName}`);
+    res.redirect('/settings?tenant_added=' + encodeURIComponent(tenantName));
+  } catch (e) {
+    console.error('[auto-tenant]', e.message);
+    res.redirect('/settings?tenant_error=' + encodeURIComponent(e.message));
+  }
 });
 
 app.post('/api/tenants', requireAdmin, (req, res) => {

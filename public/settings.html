@@ -7,144 +7,227 @@
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
-      --blue: #0078d4; --blue-dark: #005a9e;
-      --surface: #f3f2f1; --card: #fff; --text: #201f1e; --muted: #605e5c;
-      --border: #edebe9; --red: #d13438; --red-bg: #fde7e9;
-      --green: #107c10; --green-bg: #dff6dd; --orange: #ca5010;
+      --blue: #007AFF; --blue-dark: #0056CC;
+      --surface: transparent; --card: rgba(255,255,255,0.72);
+      --text: #1d1d1f; --muted: #86868b;
+      --border: rgba(0,0,0,0.08); --border-glass: rgba(255,255,255,0.55);
+      --red: #FF3B30; --red-bg: rgba(255,59,48,0.10);
+      --green: #34C759; --green-bg: rgba(52,199,89,0.12);
+      --orange: #FF9500;
+      --radius: 16px; --radius-sm: 10px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.09), 0 1px 3px rgba(0,0,0,0.05);
+      --shadow-lg: 0 20px 60px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.08);
     }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--surface); color: var(--text); min-height: 100vh; }
 
-    header { background: var(--blue); color: white; height: 48px; padding: 0 24px; display: flex; align-items: center; gap: 12px; }
-    header .brand { font-size: 15px; font-weight: 600; }
-    header nav { display: flex; gap: 4px; margin-left: 24px; }
-    header nav a { color: rgba(255,255,255,.8); text-decoration: none; font-size: 14px; padding: 4px 12px; border-radius: 4px; }
-    header nav a:hover { background: rgba(255,255,255,.1); color: white; }
-    header nav a.active { background: rgba(255,255,255,.15); color: white; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(145deg, #e8f0fe 0%, #f3e8ff 35%, #fce4ec 65%, #e8f5e9 100%);
+      background-attachment: fixed;
+      color: var(--text); min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────────── */
+    header {
+      background: rgba(255,255,255,0.6);
+      backdrop-filter: blur(32px) saturate(200%);
+      -webkit-backdrop-filter: blur(32px) saturate(200%);
+      border-bottom: 1px solid rgba(255,255,255,0.5);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.06);
+      color: var(--text); height: 52px; padding: 0 28px;
+      display: flex; align-items: center; gap: 12px;
+      position: sticky; top: 0; z-index: 200;
+    }
+    header .brand { font-size: 15px; font-weight: 700; letter-spacing: -.2px; color: var(--text); }
+    header nav { display: flex; gap: 2px; margin-left: 20px; }
+    header nav a {
+      color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500;
+      padding: 5px 14px; border-radius: 20px; transition: all .15s;
+    }
+    header nav a:hover { background: rgba(0,0,0,0.06); color: var(--text); }
+    header nav a.active { background: rgba(0,122,255,0.12); color: var(--blue); }
     header .spacer { flex: 1; }
-    header .signout { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); color: white; padding: 4px 14px; border-radius: 4px; font-size: 13px; cursor: pointer; }
-    header .signout:hover { background: rgba(255,255,255,.22); }
+    header .signout {
+      background: rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.08);
+      color: var(--text); padding: 5px 16px; border-radius: 20px;
+      font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s;
+    }
+    header .signout:hover { background: rgba(0,0,0,0.10); }
 
     main { max-width: 860px; margin: 0 auto; padding: 36px 24px; }
-    .page-header { display: flex; align-items: center; margin-bottom: 28px; }
-    .page-header h1 { font-size: 22px; }
+    .page-header { display: flex; align-items: center; margin-bottom: 20px; }
+    .page-header h1 { font-size: 22px; font-weight: 700; letter-spacing: -.3px; }
     .page-header .spacer { flex: 1; }
 
-    .btn-primary { padding: 9px 20px; background: var(--blue); color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-    .btn-primary:hover:not(:disabled) { background: var(--blue-dark); }
-    .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
-    .btn-secondary { padding: 7px 16px; background: white; color: var(--text); border: 1px solid #c8c6c4; border-radius: 4px; font-size: 13px; cursor: pointer; }
-    .btn-secondary:hover { background: var(--surface); }
-    .btn-ghost { padding: 5px 10px; background: none; border: none; font-size: 13px; color: var(--muted); cursor: pointer; border-radius: 4px; }
-    .btn-ghost:hover { background: var(--surface); color: var(--text); }
-    .btn-danger { padding: 5px 10px; background: none; border: none; font-size: 13px; color: var(--red); cursor: pointer; border-radius: 4px; }
+    /* ── Buttons ─────────────────────────────────────────────────────────────── */
+    .btn-primary {
+      padding: 9px 22px; background: var(--blue); color: white; border: none;
+      border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+      box-shadow: 0 2px 8px rgba(0,122,255,0.3); transition: all .15s;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--blue-dark); box-shadow: 0 4px 14px rgba(0,122,255,0.4); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+    .btn-secondary {
+      padding: 7px 18px; background: rgba(255,255,255,0.7); color: var(--text);
+      border: 1px solid rgba(0,0,0,0.12); border-radius: 20px;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      backdrop-filter: blur(8px); transition: all .15s;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.9); }
+    .btn-ghost { padding: 5px 10px; background: none; border: none; font-size: 13px; color: var(--muted); cursor: pointer; border-radius: var(--radius-sm); transition: all .15s; }
+    .btn-ghost:hover { background: rgba(0,0,0,0.06); color: var(--text); }
+    .btn-danger { padding: 5px 10px; background: none; border: none; font-size: 13px; color: var(--red); cursor: pointer; border-radius: var(--radius-sm); transition: all .15s; }
     .btn-danger:hover { background: var(--red-bg); }
 
-    /* Tenant list */
-    .tenant-list { display: flex; flex-direction: column; gap: 2px; }
-    .tenant-card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 6px;
-      padding: 16px 20px; display: flex; align-items: center; gap: 16px;
+    /* ── Glass card ──────────────────────────────────────────────────────────── */
+    .glass-card {
+      background: rgba(255,255,255,0.68);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid rgba(255,255,255,0.55);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
     }
-    .tenant-card.disabled { opacity: .55; }
+
+    /* ── Tenant list ─────────────────────────────────────────────────────────── */
+    .tenant-list { display: flex; flex-direction: column; gap: 8px; }
+    .tenant-card {
+      background: rgba(255,255,255,0.68);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      border: 1px solid rgba(255,255,255,0.55);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      padding: 16px 20px; display: flex; align-items: center; gap: 16px;
+      transition: box-shadow .2s, transform .15s;
+    }
+    .tenant-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.12); transform: translateY(-1px); }
+    .tenant-card.disabled { opacity: .5; }
     .tenant-icon {
-      width: 38px; height: 38px; border-radius: 8px;
-      background: #e3f0fb; color: var(--blue);
+      width: 40px; height: 40px; border-radius: 12px;
+      background: rgba(0,122,255,0.12); color: var(--blue);
       display: flex; align-items: center; justify-content: center;
-      font-size: 18px; flex-shrink: 0;
+      font-size: 20px; flex-shrink: 0;
     }
     .tenant-info { flex: 1; min-width: 0; }
     .tenant-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tenant-ids  { font-size: 12px; color: var(--muted); font-family: 'Cascadia Code', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tenant-ids  { font-size: 12px; color: var(--muted); font-family: 'SF Mono', 'Cascadia Code', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .tenant-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
     .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .status-dot.ok      { background: var(--green); }
     .status-dot.error   { background: var(--red); }
     .status-dot.pending { background: #c8c6c4; }
-    .test-label { font-size: 11px; color: var(--muted); }
 
-    /* Toggle switch */
-    .toggle { position: relative; display: inline-flex; width: 36px; height: 20px; flex-shrink: 0; vertical-align: middle; }
+    /* ── Toggle ──────────────────────────────────────────────────────────────── */
+    .toggle { position: relative; display: inline-flex; width: 40px; height: 24px; flex-shrink: 0; vertical-align: middle; }
     .toggle input { opacity: 0; width: 0; height: 0; }
     .toggle-track {
-      position: absolute; inset: 0; border-radius: 10px;
-      background: #c8c6c4; cursor: pointer; transition: background .2s;
+      position: absolute; inset: 0; border-radius: 12px;
+      background: rgba(120,120,128,0.32); cursor: pointer; transition: background .2s;
     }
-    .toggle input:checked + .toggle-track { background: var(--blue); }
+    .toggle input:checked + .toggle-track { background: var(--green); }
     .toggle-track::after {
       content: ''; position: absolute;
-      width: 14px; height: 14px; border-radius: 50%;
-      background: white; top: 3px; left: 3px;
-      transition: transform .2s;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: white; box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+      top: 3px; left: 3px; transition: transform .2s;
     }
     .toggle input:checked + .toggle-track::after { transform: translateX(16px); }
 
-    /* Empty state */
+    /* ── Empty state ─────────────────────────────────────────────────────────── */
     .empty-state {
-      background: var(--card); border: 2px dashed var(--border); border-radius: 8px;
-      padding: 48px 24px; text-align: center;
+      background: rgba(255,255,255,0.5);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1.5px dashed rgba(0,0,0,0.12); border-radius: var(--radius);
+      padding: 56px 24px; text-align: center;
     }
-    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
-    .empty-state h3 { font-size: 16px; margin-bottom: 6px; }
-    .empty-state p { font-size: 14px; color: var(--muted); margin-bottom: 20px; }
+    .empty-state .icon { font-size: 48px; margin-bottom: 14px; }
+    .empty-state h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+    .empty-state p { font-size: 14px; color: var(--muted); margin-bottom: 22px; }
 
-    /* Form panel (slide-in below header) */
+    /* ── Form panel — now a modal overlay ───────────────────────────────────── */
     .form-panel {
-      background: white; border: 1px solid var(--border); border-radius: 8px;
-      padding: 24px 28px; margin-bottom: 16px;
-      display: none;
+      display: none; position: fixed; inset: 0; z-index: 500;
+      align-items: center; justify-content: center; padding: 24px;
+      background: rgba(0,0,0,0.25);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
-    .form-panel.open { display: block; }
-    .form-panel h3 { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+    .form-panel.open { display: flex; }
+    .form-panel-inner {
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(48px) saturate(200%);
+      -webkit-backdrop-filter: blur(48px) saturate(200%);
+      border: 1px solid rgba(255,255,255,0.7);
+      border-radius: 20px; box-shadow: var(--shadow-lg);
+      padding: 32px; width: 100%; max-width: 600px;
+      max-height: 90vh; overflow-y: auto;
+    }
+    .form-panel h3 { font-size: 18px; font-weight: 700; letter-spacing: -.2px; margin-bottom: 24px; }
 
     .field { margin-bottom: 16px; }
-    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
     .field input {
-      width: 100%; padding: 9px 13px; border: 1px solid #c8c6c4; border-radius: 4px;
-      font-size: 14px; color: var(--text);
+      width: 100%; padding: 10px 14px;
+      background: rgba(255,255,255,0.8); backdrop-filter: blur(8px);
+      border: 1px solid rgba(0,0,0,0.12); border-radius: var(--radius-sm);
+      font-size: 14px; color: var(--text); transition: all .15s;
     }
-    .field input.mono { font-family: 'Cascadia Code', monospace; }
+    .field input.mono { font-family: 'SF Mono', 'Cascadia Code', monospace; }
     .field input.optional { border-style: dashed; }
-    .field input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 2px rgba(0,120,212,.18); }
+    .field input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,122,255,0.15); background: white; }
     .field .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
-    .alert { padding: 10px 14px; border-radius: 4px; font-size: 13px; display: none; margin-bottom: 16px; }
+    .alert { padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; display: none; margin-bottom: 16px; }
     .alert.show { display: block; }
-    .alert.error   { background: var(--red-bg);   border: 1px solid #f1707b; color: var(--red); }
-    .alert.success { background: var(--green-bg); border: 1px solid #57a300; color: var(--green); }
+    .alert.error   { background: var(--red-bg);   border: 1px solid rgba(255,59,48,0.3);  color: var(--red); }
+    .alert.success { background: var(--green-bg); border: 1px solid rgba(52,199,89,0.3);  color: #1a7f37; }
 
-    .form-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .form-actions { display: flex; gap: 10px; margin-top: 24px; }
 
-    /* Guide */
-    .guide-box { background: #f0f6ff; border: 1px solid #c7e0f4; border-radius: 6px; padding: 14px 16px; margin-bottom: 20px; }
+    /* ── Guide ───────────────────────────────────────────────────────────────── */
+    .guide-box { background: rgba(0,122,255,0.06); border: 1px solid rgba(0,122,255,0.18); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 20px; }
     .guide-box summary { font-size: 13px; font-weight: 600; color: var(--blue); cursor: pointer; }
     .guide-steps { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
     .guide-step  { display: flex; gap: 10px; align-items: flex-start; }
-    .guide-num   { width: 18px; height: 18px; flex-shrink: 0; background: var(--blue); color: white; border-radius: 50%; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .guide-num   { width: 20px; height: 20px; flex-shrink: 0; background: var(--blue); color: white; border-radius: 50%; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
     .guide-text  { font-size: 13px; line-height: 1.5; }
-    .guide-text code { background: #deedf9; padding: 1px 4px; border-radius: 3px; font-family: monospace; font-size: 11px; }
+    .guide-text code { background: rgba(0,122,255,0.1); padding: 1px 5px; border-radius: 4px; font-family: monospace; font-size: 11px; color: var(--blue); }
 
-    /* Toast */
+    /* ── Toast ───────────────────────────────────────────────────────────────── */
     #toast {
-      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
-      background: #201f1e; color: white; padding: 10px 20px; border-radius: 6px;
-      font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 99;
+      position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+      background: rgba(30,30,32,0.88); backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: white; padding: 11px 22px; border-radius: 20px;
+      font-size: 14px; font-weight: 500;
+      opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 999;
+      white-space: nowrap; box-shadow: 0 4px 24px rgba(0,0,0,0.3);
     }
     #toast.show { opacity: 1; }
 
-    /* Users / Groups tables */
+    /* ── Tables ──────────────────────────────────────────────────────────────── */
     .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .data-table th { padding: 8px 12px; text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; background: #f8f7f6; border-bottom: 1px solid var(--border); }
-    .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .data-table th { padding: 8px 12px; text-align: left; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; background: rgba(0,0,0,0.025); border-bottom: 1px solid var(--border); }
+    .data-table td { padding: 10px 12px; border-bottom: 1px solid rgba(0,0,0,0.05); vertical-align: middle; }
     .data-table tr:last-child td { border-bottom: none; }
-    .data-table tr:hover td { background: #faf9f8; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-    .badge-admin  { background: #e3f0fb; color: var(--blue); }
-    .badge-viewer { background: #f3f2f1; color: var(--muted); }
-    .inline-form { background: #f8f7f6; border: 1px solid var(--border); border-radius: 6px; padding: 20px 24px; margin-bottom: 16px; display: none; }
+    .data-table tr:hover td { background: rgba(0,122,255,0.03); }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-admin     { background: rgba(0,122,255,0.12); color: var(--blue); }
+    .badge-superadmin { background: rgba(88,86,214,0.12); color: #5856d6; }
+    .badge-viewer    { background: rgba(0,0,0,0.06); color: var(--muted); }
+    .inline-form {
+      background: rgba(255,255,255,0.6); backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.5); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 20px 24px; margin-bottom: 16px; display: none;
+    }
     .inline-form.open { display: block; }
     .inline-form h4 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
-    .checkbox-group { display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; padding: 10px 12px; border: 1px solid #c8c6c4; border-radius: 4px; background: white; }
+    .checkbox-group { display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; padding: 10px 12px; border: 1px solid rgba(0,0,0,0.1); border-radius: var(--radius-sm); background: rgba(255,255,255,0.7); }
     .checkbox-group label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
   </style>
 </head>
@@ -170,47 +253,90 @@
     <button class="btn-primary" id="btn-add">+ Add tenant</button>
   </div>
 
-  <!-- Add / Edit form -->
+  <!-- Add / Edit form (modal overlay) -->
   <div class="form-panel" id="form-panel">
+   <div class="form-panel-inner">
     <h3 id="form-title">Add tenant</h3>
 
-    <details class="guide-box">
-      <summary>How to get these values from Azure Portal</summary>
-      <div class="guide-steps">
-        <div class="guide-step"><div class="guide-num">1</div><div class="guide-text">Create an <strong>App Registration</strong> in Azure Portal for this monitor.</div></div>
-        <div class="guide-step"><div class="guide-num">2</div><div class="guide-text">Add API permission: Microsoft Graph → Application permissions → <code>Application.Read.All</code>, then grant admin consent.</div></div>
-        <div class="guide-step"><div class="guide-num">3</div><div class="guide-text">Create a <strong>Client Secret</strong> under Certificates &amp; secrets — copy the value immediately.</div></div>
-        <div class="guide-step"><div class="guide-num">4</div><div class="guide-text">Copy the <strong>Tenant ID</strong> and <strong>Client ID</strong> from the app's Overview page.</div></div>
-      </div>
-    </details>
-
-    <div id="form-alert" class="alert error"></div>
-
-    <div class="field">
-      <label>Display name</label>
-      <input id="f-name" type="text" placeholder="e.g. Contoso Production">
+    <!-- Tab bar — hidden when editing an existing tenant -->
+    <div id="add-method-tabs" style="display:flex;border-bottom:2px solid var(--border);margin-bottom:20px;gap:0">
+      <button class="add-tab active" data-tab="manual" style="padding:8px 18px;border:none;background:none;font-size:14px;font-weight:600;cursor:pointer;border-bottom:2px solid var(--blue);margin-bottom:-2px;color:var(--blue)">Manual setup</button>
+      <button class="add-tab" data-tab="auto" style="padding:8px 18px;border:none;background:none;font-size:14px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--muted)">Via Microsoft login</button>
     </div>
-    <div class="field-row">
+
+    <!-- Manual tab -->
+    <div id="tab-content-manual">
+      <details class="guide-box">
+        <summary>How to get these values from Azure Portal</summary>
+        <div class="guide-steps">
+          <div class="guide-step"><div class="guide-num">1</div><div class="guide-text">Create an <strong>App Registration</strong> in Azure Portal for this monitor.</div></div>
+          <div class="guide-step"><div class="guide-num">2</div><div class="guide-text">Add API permission: Microsoft Graph → Application permissions → <code>Application.Read.All</code>, then grant admin consent.</div></div>
+          <div class="guide-step"><div class="guide-num">3</div><div class="guide-text">Create a <strong>Client Secret</strong> under Certificates &amp; secrets — copy the value immediately.</div></div>
+          <div class="guide-step"><div class="guide-num">4</div><div class="guide-text">Copy the <strong>Tenant ID</strong> and <strong>Client ID</strong> from the app's Overview page.</div></div>
+        </div>
+      </details>
+
+      <div id="form-alert" class="alert error"></div>
+
       <div class="field">
-        <label>Tenant ID</label>
-        <input id="f-tenantId" class="mono" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false" autocomplete="off">
+        <label>Display name</label>
+        <input id="f-name" type="text" placeholder="e.g. Contoso Production">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Tenant ID</label>
+          <input id="f-tenantId" class="mono" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Client ID</label>
+          <input id="f-clientId" class="mono" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false" autocomplete="off">
+        </div>
       </div>
       <div class="field">
-        <label>Client ID</label>
-        <input id="f-clientId" class="mono" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false" autocomplete="off">
+        <label>Client Secret</label>
+        <input id="f-clientSecret" type="password" placeholder="Paste secret value (leave blank to keep existing)" autocomplete="new-password">
+        <div class="hint" id="f-secret-hint" style="display:none">A secret is already saved — leave blank to keep it.</div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn-primary" id="btn-save-tenant">Save tenant</button>
+        <button class="btn-secondary" id="btn-cancel">Cancel</button>
       </div>
     </div>
-    <div class="field">
-      <label>Client Secret</label>
-      <input id="f-clientSecret" type="password" placeholder="Paste secret value (leave blank to keep existing)" autocomplete="new-password">
-      <div class="hint" id="f-secret-hint" style="display:none">A secret is already saved — leave blank to keep it.</div>
-    </div>
 
-    <div class="form-actions">
-      <button class="btn-primary" id="btn-save-tenant">Save tenant</button>
-      <button class="btn-secondary" id="btn-cancel">Cancel</button>
+    <!-- Auto tab -->
+    <div id="tab-content-auto" style="display:none">
+      <div id="auto-not-configured" style="display:none;background:#fef7e0;border:1px solid #f4d451;border-radius:6px;padding:16px 18px;margin-bottom:18px;font-size:13px;line-height:1.6">
+        <strong>Connector app not configured.</strong> Before using automatic setup, scroll down to the <strong>Connector app</strong> section and enter your connector app's Client ID and Secret.
+        <details style="margin-top:10px">
+          <summary style="cursor:pointer;font-weight:600">How to create the connector app</summary>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+            <div>1. Go to <a href="https://portal.azure.com" target="_blank" rel="noopener" style="color:var(--blue)">Azure Portal</a> → Azure Active Directory → App registrations → <strong>New registration</strong>.</div>
+            <div>2. Set <em>Supported account types</em> to <strong>Accounts in any organizational directory (Multi-tenant)</strong>.</div>
+            <div>3. Add redirect URI (Web): <code id="auto-callback-url" style="background:#f3f2f1;padding:2px 6px;border-radius:3px"></code></div>
+            <div>4. Under <em>API permissions</em> add delegated permissions: <code>Application.ReadWrite.All</code> and <code>AppRoleAssignment.ReadWrite.All</code>.</div>
+            <div>5. Create a Client Secret and paste the Client ID and Secret into the Connector app section below.</div>
+          </div>
+        </details>
+      </div>
+
+      <div id="auto-configured">
+        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:18px">
+          You will be redirected to Microsoft to sign in with a <strong>Global Administrator</strong> or <strong>Application Administrator</strong> account of the target tenant.
+          The monitor will automatically create an app registration and grant it <code>Application.Read.All</code> permission in that tenant.
+        </p>
+        <div id="auto-alert" class="alert error" style="margin-bottom:14px"></div>
+        <div style="display:flex;gap:10px">
+          <button id="btn-connect-ms" style="display:flex;align-items:center;gap:10px;padding:9px 20px;background:#0078d4;color:white;border:none;border-radius:4px;font-size:14px;font-weight:600;cursor:pointer">
+            <svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+            Sign in with Microsoft
+          </button>
+          <button class="btn-secondary" id="btn-cancel-auto">Cancel</button>
+        </div>
+      </div>
     </div>
-  </div>
+   </div><!-- /.form-panel-inner -->
+  </div><!-- /.form-panel -->
 
   <!-- Tenant list -->
   <div id="tenant-list" class="tenant-list"></div>
@@ -221,8 +347,32 @@
     <p>Add an Azure AD tenant to start monitoring app secrets.</p>
     <button class="btn-primary" onclick="openAdd()">+ Add your first tenant</button>
   </div>
+
+  <!-- Connector app (admin only) -->
+  <div id="section-connector" style="margin-top:20px;display:none">
+    <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:20px 24px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">Connector app <span style="font-size:12px;font-weight:400;color:var(--muted)"> — required for "Via Microsoft login" automatic setup</span></div>
+      <p style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:16px">A multi-tenant Azure AD app with delegated <code>Application.ReadWrite.All</code> and <code>AppRoleAssignment.ReadWrite.All</code> permissions. Used once per tenant to auto-create a dedicated monitoring app registration.</p>
+      <div id="connector-alert" class="alert" style="margin-bottom:12px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Client (Application) ID</label>
+          <input id="conn-client-id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px;font-family:monospace">
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Client Secret</label>
+          <input id="conn-client-secret" type="password" placeholder="Leave blank to keep existing"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #c8c6c4;border-radius:4px;font-size:13px">
+          <div id="conn-secret-hint" style="font-size:11px;color:var(--muted);margin-top:3px;display:none">A secret is already saved.</div>
+        </div>
+      </div>
+      <button id="btn-save-connector" class="btn-secondary">Save connector</button>
+    </div>
+  </div>
+
   <!-- General settings -->
-  <div style="margin-top:32px">
+  <div style="margin-top:28px">
     <div class="page-header" style="margin-bottom:16px"><h1>General settings</h1></div>
     <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:24px 28px;display:flex;flex-direction:column;gap:28px">
 
@@ -280,13 +430,13 @@
 
   <!-- Branding -->
   <!-- Passkeys -->
-  <div style="margin-top:32px" id="section-passkeys">
+  <div style="margin-top:28px" id="section-passkeys">
     <div class="page-header" style="margin-bottom:16px">
       <h1>Passkeys</h1>
       <span class="spacer"></span>
       <button class="btn-primary" id="btn-add-passkey">+ Add passkey</button>
     </div>
-    <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="background:rgba(255,255,255,0.68);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.55);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden">
       <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
         <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px">
           Passkeys let you sign in with your device's biometrics (fingerprint, Face ID, Windows Hello) — no password needed.
@@ -329,11 +479,11 @@
     </div>
   </div>
 
-  <div style="margin-top:32px">
+  <div style="margin-top:28px">
     <div class="page-header" style="margin-bottom:16px">
       <h1>Branding</h1>
     </div>
-    <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:24px 28px">
+    <div style="background:rgba(255,255,255,0.68);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.55);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px 28px">
       <div style="display:flex;align-items:flex-start;gap:32px;flex-wrap:wrap">
 
         <!-- Preview -->
@@ -372,7 +522,7 @@
     <div class="page-header" style="margin-bottom:16px">
       <h1>Single Sign-On</h1>
     </div>
-    <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:20px">
+    <div style="background:rgba(255,255,255,0.68);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.55);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px">
       <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:20px">
         Allow users to sign in with their Microsoft 365 account via OAuth2. Create an app registration in <a href="https://portal.azure.com" target="_blank" rel="noopener" style="color:var(--blue)">Azure Portal</a> with a redirect URI of <code id="sso-redirect-uri" style="background:#f3f2f1;padding:2px 6px;border-radius:3px;font-size:12px"></code>.
       </div>
@@ -453,6 +603,7 @@
           <select id="uf-role" style="width:100%;padding:9px 13px;border:1px solid #c8c6c4;border-radius:4px;font-size:14px;background:white">
             <option value="viewer">Viewer</option>
             <option value="admin">Admin</option>
+            <option value="superadmin" id="uf-role-superadmin" style="display:none">Super Admin</option>
           </select>
         </div>
       </div>
@@ -472,7 +623,7 @@
       </div>
     </div>
 
-    <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="background:rgba(255,255,255,0.68);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.55);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden">
       <div id="users-empty" class="empty-state" style="display:none;border:none;border-radius:8px">
         <div class="icon">👤</div>
         <h3>No users yet</h3>
@@ -509,7 +660,7 @@
         <option value="500">Show all</option>
       </select>
     </div>
-    <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="background:rgba(255,255,255,0.68);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.55);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden">
       <table class="data-table" id="audit-table">
         <thead>
           <tr>
@@ -547,7 +698,7 @@
         <option value="500">Show all</option>
       </select>
     </div>
-    <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="background:rgba(255,255,255,0.68);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.55);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden">
       <table class="data-table">
         <thead>
           <tr><th>Time</th><th>Version (git SHA)</th></tr>
@@ -590,7 +741,7 @@
       </div>
     </div>
 
-    <div style="background:white;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+    <div style="background:rgba(255,255,255,0.68);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.55);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden">
       <div id="groups-empty" class="empty-state" style="display:none;border:none;border-radius:8px">
         <div class="icon">👥</div>
         <h3>No groups yet</h3>
@@ -610,9 +761,9 @@
   </div>
 
   <!-- Email / Notifications -->
-  <div style="margin-top:32px">
+  <div style="margin-top:28px">
     <div class="page-header" style="margin-bottom:16px"><h1>Email notifications</h1></div>
-    <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:24px 28px">
+    <div style="background:rgba(255,255,255,0.68);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,0.55);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px 28px">
 
       <div id="mail-alert" class="alert" style="margin-bottom:16px"></div>
 
@@ -791,7 +942,7 @@
       </div>
     </div>
   </div>
-  <!-- Danger zone -->
+  <!-- Danger zone (superadmin only) -->
   <div id="section-danger" style="margin-top:32px;display:none">
     <div class="page-header" style="margin-bottom:16px"><h1>Danger zone</h1></div>
     <div style="background:white;border:1px solid #f1707b;border-radius:8px;padding:24px 28px">
@@ -811,6 +962,27 @@
     </div>
   </div>
 </main>
+
+<!-- Factory reset confirm modal -->
+<div id="modal-reset" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:white;border-radius:8px;padding:32px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <h2 style="margin:0 0 6px;font-size:17px;color:var(--red)">Confirm factory reset</h2>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 20px">Enter your password to confirm. This will wipe all accounts, tenants, and settings.</p>
+    <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Password</label>
+    <input id="reset-password" type="password" autocomplete="current-password"
+      style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:4px;font-size:14px;margin-bottom:14px">
+    <div id="reset-2fa-row" style="display:none">
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Authenticator code</label>
+      <input id="reset-totp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code"
+        style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:4px;font-size:14px;margin-bottom:14px;letter-spacing:4px">
+    </div>
+    <div id="reset-modal-error" style="display:none;color:var(--red);font-size:13px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button id="btn-reset-cancel" style="padding:8px 18px;border:1px solid var(--border);background:white;border-radius:4px;font-size:14px;cursor:pointer">Cancel</button>
+      <button id="btn-reset-confirm" style="padding:8px 18px;background:var(--red);color:white;border:none;border-radius:4px;font-size:14px;font-weight:600;cursor:pointer">Reset everything</button>
+    </div>
+  </div>
+</div>
 
 <div style="text-align:center;padding:24px;font-size:12px;color:#a19f9d">
   M365 App Secret Monitor &nbsp;·&nbsp; version <span id="app-version">…</span>
@@ -838,14 +1010,18 @@
       const res = await fetch('/api/me');
       if (!res.ok) return;
       currentUser = await res.json();
-      if (currentUser.role === 'admin') {
+      const isAdmin = currentUser.role === 'admin' || currentUser.role === 'superadmin';
+      if (isAdmin) {
         document.getElementById('section-sso').style.display = '';
         document.getElementById('section-users').style.display = '';
         document.getElementById('section-groups').style.display = '';
         document.getElementById('section-audit').style.display = '';
         document.getElementById('section-version-log').style.display = '';
-        document.getElementById('section-danger').style.display = '';
-        await Promise.all([loadUsers(), loadGroups(), loadAuditLog(), loadSso(), loadVersionLog(), loadRetention()]);
+        document.getElementById('section-connector').style.display = '';
+        if (currentUser.role === 'superadmin') {
+          document.getElementById('section-danger').style.display = '';
+        }
+        await Promise.all([loadUsers(), loadGroups(), loadAuditLog(), loadSso(), loadVersionLog(), loadRetention(), loadConnector()]);
       }
     } catch {}
   }
@@ -893,6 +1069,37 @@
     }
   }
 
+  // ── Add / Edit form tabs ──────────────────────────────────────────────────
+  function switchTab(tab) {
+    document.querySelectorAll('.add-tab').forEach(btn => {
+      const active = btn.dataset.tab === tab;
+      btn.style.borderBottomColor = active ? 'var(--blue)' : 'transparent';
+      btn.style.color = active ? 'var(--blue)' : 'var(--muted)';
+    });
+    document.getElementById('tab-content-manual').style.display = tab === 'manual' ? '' : 'none';
+    document.getElementById('tab-content-auto').style.display   = tab === 'auto'   ? '' : 'none';
+  }
+
+  document.querySelectorAll('.add-tab').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  let connectorConfigured = false;
+
+  async function loadConnector() {
+    try {
+      const res  = await fetch('/api/connector');
+      const data = await res.json();
+      document.getElementById('conn-client-id').value     = data.clientId || '';
+      document.getElementById('conn-secret-hint').style.display = data.clientSecretSet ? '' : 'none';
+      connectorConfigured = !!(data.clientId && data.clientSecretSet);
+      document.getElementById('auto-not-configured').style.display = connectorConfigured ? 'none' : '';
+      document.getElementById('auto-configured').style.display     = connectorConfigured ? '' : 'none';
+      // populate callback URL hint
+      document.getElementById('auto-callback-url').textContent = `${location.protocol}//${location.host}/api/tenants/auto/callback`;
+    } catch {}
+  }
+
   // ── Add / Edit form ───────────────────────────────────────────────────────
   function openAdd() {
     editingId = null;
@@ -904,8 +1111,10 @@
     document.getElementById('f-secret-hint').style.display = 'none';
     document.getElementById('f-clientSecret').placeholder = 'Paste secret value';
     document.getElementById('form-alert').className = 'alert error';
+    document.getElementById('add-method-tabs').style.display = 'flex';
+    switchTab('manual');
     document.getElementById('form-panel').classList.add('open');
-    document.getElementById('f-name').focus();
+    setTimeout(() => document.getElementById('f-name').focus(), 50);
     document.getElementById('btn-save-tenant').textContent = 'Save tenant';
   }
 
@@ -921,14 +1130,65 @@
     document.getElementById('f-clientSecret').placeholder = 'Leave blank to keep existing secret';
     document.getElementById('f-secret-hint').style.display = t.clientSecretSet ? '' : 'none';
     document.getElementById('form-alert').className = 'alert error';
+    document.getElementById('add-method-tabs').style.display = 'none'; // hide tabs when editing
+    switchTab('manual');
     document.getElementById('form-panel').classList.add('open');
-    document.getElementById('f-name').focus();
+    setTimeout(() => document.getElementById('f-name').focus(), 50);
     document.getElementById('btn-save-tenant').textContent = 'Update tenant';
   }
 
+  function closeFormPanel() { document.getElementById('form-panel').classList.remove('open'); }
+
   document.getElementById('btn-add').addEventListener('click', openAdd);
-  document.getElementById('btn-cancel').addEventListener('click', () => {
-    document.getElementById('form-panel').classList.remove('open');
+  document.getElementById('btn-cancel').addEventListener('click', closeFormPanel);
+  document.getElementById('btn-cancel-auto').addEventListener('click', closeFormPanel);
+  document.getElementById('form-panel').addEventListener('click', e => {
+    if (e.target === document.getElementById('form-panel')) closeFormPanel();
+  });
+
+  // ── Connect via Microsoft ─────────────────────────────────────────────────
+  document.getElementById('btn-connect-ms').addEventListener('click', async () => {
+    const btn   = document.getElementById('btn-connect-ms');
+    const alert = document.getElementById('auto-alert');
+    alert.className = 'alert error';
+    btn.disabled = true; btn.textContent = 'Redirecting…';
+    try {
+      const res  = await fetch('/api/tenants/auto/start');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not start OAuth flow');
+      window.location.href = data.url;
+    } catch (e) {
+      alert.textContent = e.message;
+      alert.className = 'alert error show';
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg> Sign in with Microsoft`;
+    }
+  });
+
+  // ── Connector save ────────────────────────────────────────────────────────
+  document.getElementById('btn-save-connector').addEventListener('click', async () => {
+    const btn   = document.getElementById('btn-save-connector');
+    const alert = document.getElementById('connector-alert');
+    alert.className = 'alert';
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const res  = await fetch('/api/connector', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: document.getElementById('conn-client-id').value.trim(), clientSecret: document.getElementById('conn-client-secret').value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      document.getElementById('conn-client-secret').value = '';
+      await loadConnector();
+      alert.textContent = 'Connector saved.';
+      alert.className = 'alert success show';
+      setTimeout(() => { alert.className = 'alert'; }, 3000);
+    } catch (e) {
+      alert.textContent = e.message;
+      alert.className = 'alert error show';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save connector';
+    }
   });
 
   document.getElementById('btn-save-tenant').addEventListener('click', async () => {
@@ -1038,6 +1298,22 @@
     const listEl = document.getElementById('mail-tenant-list');
     buildMailTenantList(listEl.dataset.selected || 'all');
   });
+
+  // ── Handle redirect back from Microsoft OAuth ─────────────────────────────
+  (function handleOAuthReturn() {
+    const params = new URLSearchParams(location.search);
+    if (params.has('tenant_added')) {
+      toast(`Tenant "${params.get('tenant_added')}" added successfully.`);
+      history.replaceState(null, '', '/settings');
+    } else if (params.has('tenant_error')) {
+      const err = document.createElement('div');
+      err.style.cssText = 'position:fixed;top:16px;right:16px;background:#fde7e9;border:1px solid #f1707b;color:#a4262c;padding:12px 18px;border-radius:6px;font-size:13px;z-index:999;max-width:360px;box-shadow:0 2px 8px rgba(0,0,0,.15)';
+      err.textContent = 'Microsoft login error: ' + params.get('tenant_error');
+      document.body.appendChild(err);
+      setTimeout(() => err.remove(), 8000);
+      history.replaceState(null, '', '/settings');
+    }
+  })();
 
   loadMe();
 
@@ -1355,7 +1631,7 @@
       tr.innerHTML = `
         <td><strong>${esc(u.username)}</strong></td>
         <td>${esc(u.email)}</td>
-        <td><span class="badge badge-${u.role}">${u.role}</span></td>
+        <td><span class="badge badge-${u.role === 'superadmin' ? 'admin' : u.role}">${u.role === 'superadmin' ? 'Super Admin' : u.role}</span></td>
         <td>${groupNames}</td>
         <td>
           ${u.email
@@ -1406,6 +1682,7 @@
     document.getElementById('uf-email').value = '';
     document.getElementById('uf-password').value = '';
     document.getElementById('uf-role').value = 'viewer';
+    document.getElementById('uf-role-superadmin').style.display = currentUser.role === 'superadmin' ? '' : 'none';
     document.getElementById('uf-notifications').checked = false;
     document.getElementById('uf-pass-hint').style.display = 'none';
     document.getElementById('user-form-alert').className = 'alert error';
@@ -1423,6 +1700,7 @@
     document.getElementById('uf-username').value = u.username;
     document.getElementById('uf-email').value = u.email;
     document.getElementById('uf-password').value = '';
+    document.getElementById('uf-role-superadmin').style.display = currentUser.role === 'superadmin' ? '' : 'none';
     document.getElementById('uf-role').value = u.role;
     document.getElementById('uf-notifications').checked = !!u.receiveNotifications;
     document.getElementById('uf-pass-hint').style.display = '';
@@ -1989,25 +2267,50 @@
     }
   });
 
-  document.getElementById('btn-factory-reset').addEventListener('click', async () => {
-    if (!confirm('This will delete all users, tenants, and settings, and redirect to the setup wizard. Are you sure?')) return;
-    const btn = document.getElementById('btn-factory-reset');
-    const msg = document.getElementById('reset-msg');
+  // ── Factory reset modal ───────────────────────────────────────────────────
+  const modalReset  = document.getElementById('modal-reset');
+  const resetPwdIn  = document.getElementById('reset-password');
+  const resetTotpIn = document.getElementById('reset-totp');
+  const reset2faRow = document.getElementById('reset-2fa-row');
+  const resetErr    = document.getElementById('reset-modal-error');
+
+  function openResetModal() {
+    resetPwdIn.value  = '';
+    resetTotpIn.value = '';
+    resetErr.style.display = 'none';
+    reset2faRow.style.display = currentUser.totpEnabled ? '' : 'none';
+    modalReset.style.display = 'flex';
+    setTimeout(() => resetPwdIn.focus(), 50);
+  }
+
+  function closeResetModal() {
+    modalReset.style.display = 'none';
+  }
+
+  document.getElementById('btn-factory-reset').addEventListener('click', openResetModal);
+  document.getElementById('btn-reset-cancel').addEventListener('click', closeResetModal);
+  modalReset.addEventListener('click', e => { if (e.target === modalReset) closeResetModal(); });
+
+  document.getElementById('btn-reset-confirm').addEventListener('click', async () => {
+    const btn  = document.getElementById('btn-reset-confirm');
+    const msg  = document.getElementById('reset-msg');
+    resetErr.style.display = 'none';
     btn.disabled = true; btn.textContent = 'Resetting…';
-    msg.style.display = 'none';
     try {
-      const res  = await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const body = { password: resetPwdIn.value };
+      if (currentUser.totpEnabled) body.totpCode = resetTotpIn.value.trim();
+      const res  = await fetch('/api/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Reset failed');
+      closeResetModal();
       msg.style.display = '';
       msg.style.color = '#107c10';
       msg.textContent = 'Reset successful — redirecting to setup…';
       setTimeout(() => { window.location.href = '/setup'; }, 1500);
     } catch (e) {
-      msg.style.display = '';
-      msg.style.color = 'var(--red)';
-      msg.textContent = e.message;
-      btn.disabled = false; btn.textContent = 'Reset & re-run setup';
+      resetErr.style.display = '';
+      resetErr.textContent = e.message;
+      btn.disabled = false; btn.textContent = 'Reset everything';
     }
   });
 </script>
